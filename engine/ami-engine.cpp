@@ -56,9 +56,11 @@ enum ChanParamId {
 };
 
 enum GlobalParamId {
-    GP_A500       = 0,   // model: 1 = A500 (LP+HP), 0 = A1200 (HP only)
-    GP_LED        = 1,   // LED filter on/off
-    GP_MASTER_VOL = 2,
+    GP_A500          = 0,   // model: 1 = A500 (LP+HP), 0 = A1200 (HP only)
+    GP_LED           = 1,   // LED filter on/off
+    GP_MASTER_VOL    = 2,
+    GP_VIBE_SPEED    = 3,   // vibrato LFO speed (1..10)
+    GP_MOD_INTENSITY = 4,   // CC#1 mod wheel (0..127)
     GP__COUNT
 };
 
@@ -162,6 +164,7 @@ static void twoPoleLP(TwoPole* f, float inL, float inR, float* oL, float* oR) {
 struct Voice {
     bool active = false;
     int  note = 0;
+    int  midiChannel = 1; // note's MIDI channel (1..16), for pitch-bend lookup
     double pos = 0.0;
     double pitchRatio = 1.0;
     float gain = 0.f;
@@ -196,13 +199,38 @@ struct Channel {
 // ----------------------------------------------------------------------------
 // Engine
 // ----------------------------------------------------------------------------
+// Vibrato LFO table (32-point, unsigned 8-bit) — PluginProcessor.h:277
+static const uint8_t VIBRATO_TABLE[32] = {
+    0xFF, 0xFD, 0xFA, 0xF4, 0xEB, 0xE0, 0xD4, 0xC5,
+    0xB4, 0xA1, 0x8D, 0x78, 0x61, 0x4A, 0x31, 0x18,
+    0x00, 0x18, 0x31, 0x4A, 0x61, 0x78, 0x8D, 0xA1,
+    0xB4, 0xC5, 0xD4, 0xE0, 0xEB, 0xF4, 0xFA, 0xFD
+};
+
 struct Engine {
     double devRate = 44100.0;
     float  gparams[GP__COUNT];
     Channel channels[NUM_CHANNELS];
 
+    double bend[17];           // per MIDI channel (1..16), 1.0 = no bend
+    double vibeRate = 0.0;     // vibrato LFO phase (0..32)
+    double vibeRatio = 1.0;    // current LFO pitch multiplier
+
     OnePole a500Lo, a500Hi, a1200Hi;
     TwoPole led;
+
+    // mirrors incVibratoTable (PluginProcessor.cpp:571) — call once per output sample
+    void incVibratoTable() {
+        double vibeSpeed = gparams[GP_VIBE_SPEED];
+        int modIntensity = (int)gparams[GP_MOD_INTENSITY];
+        double vibeFreq = (vibeSpeed * 32.0) / devRate;
+        int vibePos = (int)std::floor(vibeRate);
+        if (vibePos < 0) vibePos = 0; else if (vibePos > 31) vibePos = 31;
+        if (modIntensity == 0) { vibeRatio = 1.0; }
+        else { vibeRatio = 1.0 + ((double)(128 - VIBRATO_TABLE[vibePos]) * (double)modIntensity) / 409600.0; }
+        vibeRate += vibeFreq;
+        if (vibeRate >= 32.0) vibeRate = 0.0;
+    }
 
     void initFilters() {
         double rate = devRate;
@@ -220,6 +248,9 @@ struct Engine {
         devRate = sr;
         std::memset(gparams, 0, sizeof(gparams));
         gparams[GP_A500] = 1; gparams[GP_MASTER_VOL] = 1;
+        gparams[GP_VIBE_SPEED] = 5; gparams[GP_MOD_INTENSITY] = 0;
+        for (int i = 0; i < 17; i++) bend[i] = 1.0;
+        vibeRate = 0.0; vibeRatio = 1.0;
         for (auto& c : channels) c.initParams();
         initFilters();
     }
@@ -270,6 +301,12 @@ void ami_set_global_param(int id, float value) {
     if (id == GP_A500) g_engine.initFilters();
 }
 
+// MIDI pitch wheel (per channel) — bendRatio = 2^((value14 - 8192) / 49152)
+void ami_pitch_bend(int midiChannel, int value14) {
+    if (midiChannel < 1 || midiChannel > 16) return;
+    g_engine.bend[midiChannel] = std::pow(2.0, ((double)value14 - 8192.0) / 49152.0);
+}
+
 void ami_note_on(int midiNote, int midiChannel, float velocity) {
     Engine& e = g_engine;
 
@@ -303,6 +340,7 @@ void ami_note_on(int midiNote, int midiChannel, float velocity) {
         int root = (int)c.params[CP_ROOT_NOTE];
         double finetune = 1.0 + c.params[CP_FINETUNE] / 1200.0;
         v.note = midiNote;
+        v.midiChannel = (midiChannel < 1 || midiChannel > 16) ? 1 : midiChannel;
         v.pitchRatio = std::pow(2.0, (double)(midiNote - root) / 12.0) * (c.sourceRate / e.devRate) * finetune;
         v.pos = 0.0;
         v.gain = velocity;
@@ -349,6 +387,9 @@ void ami_process(int numFrames) {
     std::memset(g_outL, 0, sizeof(float) * numFrames);
     std::memset(g_outR, 0, sizeof(float) * numFrames);
 
+    // vibrato pitch multiplier captured once per block (LFO advances in the master loop)
+    const double vibe = e.vibeRatio;
+
     for (int ch = 0; ch < NUM_CHANNELS; ch++) {
         Channel& c = e.channels[ch];
         if (c.sampleFrames <= 0) continue;
@@ -377,6 +418,9 @@ void ami_process(int numFrames) {
 
             const float lMul = paula ? v.panLGain : panL;
             const float rMul = paula ? v.panRGain : panR;
+            // totalPitchRatio = pitchRatio * vibrato * fineTune * bendRatio
+            // (fineTune already folded into pitchRatio at note-on)
+            const double step = v.pitchRatio * e.bend[v.midiChannel] * vibe;
 
             for (int n = 0; n < numFrames; n++) {
                 int pos = (int)std::floor(v.pos);
@@ -400,7 +444,7 @@ void ami_process(int numFrames) {
                 g_outR[n] += r;
 
                 // advance (handleLoop)
-                double nextPos = v.pos + v.pitchRatio;
+                double nextPos = v.pos + step;
                 if (!loopEn) {
                     v.pos = nextPos;
                 } else if (!pingpong) {
@@ -408,9 +452,9 @@ void ami_process(int numFrames) {
                 } else {
                     if (v.forward) {
                         if (nextPos < loopEnd) v.pos = nextPos;
-                        else { v.forward = false; v.pos = v.pos - v.pitchRatio; }
+                        else { v.forward = false; v.pos = v.pos - step; }
                     } else {
-                        double prevPos = v.pos - v.pitchRatio;
+                        double prevPos = v.pos - step;
                         if (prevPos > loopStart) v.pos = prevPos;
                         else { v.forward = true; v.pos = nextPos; }
                     }
@@ -426,6 +470,7 @@ void ami_process(int numFrames) {
     const bool ledOn = e.gparams[GP_LED] != 0.f;
     const float mvol = e.gparams[GP_MASTER_VOL];
     for (int n = 0; n < numFrames; n++) {
+        e.incVibratoTable();
         float l = g_outL[n], r = g_outR[n];
         float fl, fr;
         if (isA500) {

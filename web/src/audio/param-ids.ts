@@ -30,6 +30,8 @@ export const GlobalParamId = {
   A500: 0,
   LED: 1,
   MASTER_VOL: 2,
+  VIBE_SPEED: 3,
+  MOD_INTENSITY: 4,
 } as const;
 
 export type GlobalParamId = (typeof GlobalParamId)[keyof typeof GlobalParamId];

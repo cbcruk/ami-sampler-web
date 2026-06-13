@@ -67,6 +67,9 @@ class AmiProcessor extends AudioWorkletProcessor {
       case "setGlobalParam":
         this.ex.ami_set_global_param(msg.id, msg.value);
         break;
+      case "pitchBend":
+        this.ex.ami_pitch_bend(msg.channel, msg.value);
+        break;
       case "meterChannel":
         this.meterChannel = msg.channel;
         break;

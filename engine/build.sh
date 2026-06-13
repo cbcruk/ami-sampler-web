@@ -9,7 +9,7 @@ source "$EMSDK/emsdk_env.sh" >/dev/null 2>&1
 OUT_DIR="../web/public/wasm"
 mkdir -p "$OUT_DIR"
 
-EXPORTS='["_ami_init","_ami_sample_l","_ami_sample_r","_ami_sample_capacity","_ami_out_l","_ami_out_r","_ami_set_sample","_ami_set_chan_param","_ami_set_global_param","_ami_note_on","_ami_note_off","_ami_all_notes_off","_ami_process","_ami_active_voices","_ami_playhead"]'
+EXPORTS='["_ami_init","_ami_sample_l","_ami_sample_r","_ami_sample_capacity","_ami_out_l","_ami_out_r","_ami_set_sample","_ami_set_chan_param","_ami_set_global_param","_ami_pitch_bend","_ami_note_on","_ami_note_off","_ami_all_notes_off","_ami_process","_ami_active_voices","_ami_playhead"]'
 
 emcc ami-engine.cpp \
   -O3 \

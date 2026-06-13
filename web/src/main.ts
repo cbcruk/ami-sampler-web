@@ -1,6 +1,7 @@
 import { AmiNode, type SampleData } from "./audio/ami-node";
 import { ChanParamId, GlobalParamId, NUM_CHANNELS } from "./audio/param-ids";
 import { decodeAudioFile } from "./audio/wav-loader";
+import { MidiInput, parseMidiMessage } from "./audio/midi-input";
 import { ComputerKeyboard } from "./ui/keyboard";
 import { WaveformView } from "./ui/waveform";
 
@@ -23,6 +24,29 @@ const channelState: Map<number, number>[] = Array.from({ length: NUM_CHANNELS },
 const keyboard = new ComputerKeyboard(
   (note) => ami?.noteOn(note, KEYBOARD_MIDI_CHANNEL, 1),
   (note) => ami?.noteOff(note, KEYBOARD_MIDI_CHANNEL),
+);
+
+const midi = new MidiInput(
+  {
+    onNoteOn: (note, channel, velocity) => ami?.noteOn(note, channel, velocity / 127),
+    onNoteOff: (note, channel) => ami?.noteOff(note, channel),
+    onPitchBend: (channel, value14) => ami?.pitchBend(channel, value14),
+    onModWheel: (value) => {
+      ami?.setGlobalParam(GlobalParamId.MOD_INTENSITY, value);
+      const input = document.querySelector<HTMLInputElement>("#p-mod-intensity");
+      if (input) {
+        input.value = String(value);
+        const label = input.parentElement?.querySelector(".val");
+        if (label) label.textContent = String(value);
+      }
+    },
+  },
+  (devices) => {
+    const el = document.querySelector("#midi-status");
+    if (!el) return;
+    if (!midi.isSupported()) el.textContent = "MIDI: not supported in this browser";
+    else el.textContent = devices.length ? `MIDI: ${devices.join(", ")}` : "MIDI: no devices connected";
+  },
 );
 
 async function ensureAudio(): Promise<AmiNode> {
@@ -198,6 +222,10 @@ function main(): void {
   bindControls();
   setupDropzone();
   keyboard.attach();
+  void midi.start();
+
+  // expose the MIDI parser for verification/debugging
+  (window as unknown as Record<string, unknown>).__parseMidi = parseMidiMessage;
 
   // first user gesture unlocks the AudioContext
   document.body.addEventListener("pointerdown", () => void ensureAudio(), { once: true });

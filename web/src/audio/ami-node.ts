@@ -79,6 +79,11 @@ export class AmiNode {
     this.node!.port.postMessage({ type: "setGlobalParam", id, value });
   }
 
+  // MIDI pitch wheel: 14-bit value (0..16383), 8192 = center
+  pitchBend(midiChannel: number, value14: number): void {
+    this.node!.port.postMessage({ type: "pitchBend", channel: midiChannel, value: value14 });
+  }
+
   noteOn(note: number, midiChannel = 1, velocity = 1): void {
     this.node!.port.postMessage({ type: "noteOn", note, midiChannel, velocity });
   }

@@ -67,9 +67,10 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 - 8SVX: big-endian FORM/VHDR/BODY, raw signed 8-bit(피보나치 압축은 원본에도 미디코드). BRR: 9바이트 블록·4필터·16.16 고정소수점·루프 플래그(16744Hz). µ-law: 지수 확장 공식(비표준 G.711, 22050Hz). 루프 메타데이터는 `SampleData.loopStart/End`로 전달.
 - 브라우저 검증: caxioohh.iff(5922@16726), amen short.brr(29024@16744, 루프 16–29023), 합성 µ-law(4000@22050) 전부 정상 디코드·재생.
 
-### 3. Web MIDI
-- `navigator.requestMIDIAccess()` → noteOn/noteOff/pitchbend/CC.
-- 원본 processBlock은 **CC#1(mod wheel) → vibrato intensity** 매핑. pitchwheel은 보이스 `bendRatio`(`pow(2,(v-8192)/49152)`). 이식 시 동일하게.
+### 3. Web MIDI — ✅ 완료
+- `web/src/audio/midi-input.ts`: 순수 파서 `parseMidiMessage` + `MidiInput`(requestMIDIAccess, statechange). main.ts에서 noteOn/off(채널 보존)·pitchbend·CC#1 배선, MIDI 상태 텍스트.
+- 엔진: 채널별 `bend[17]`(`ami_pitch_bend`), 전역 비브라토 LFO(`incVibratoTable`, vibratoTable 32값), `GP_VIBE_SPEED`/`GP_MOD_INTENSITY`. `step = pitchRatio*bend*vibe`로 피치 전진(원본 `totalPitchRatio`).
+- 검증: 파서 단위검증(채널/vel0/14비트/CC#1) 통과. FFT로 피치벤드 비율(up 1.122/down 0.890 — `2^((v-8192)/49152)` 일치), 비브라토 intensity 게이팅(0=안정, 127=흔들림) 확인. **헤드리스 Chrome은 실제 MIDI 권한 미부여라 기기 입력은 실기 필요.**
 
 ### 4. 픽셀아트 UI
 - `Res/`: `amiwin*.png`(창 배경), `amidos.ttf`/`ami_font`(픽셀 폰트), `pixelkey_black.png`(키보드), 마우스커서/트래시.
