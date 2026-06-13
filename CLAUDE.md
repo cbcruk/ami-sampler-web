@@ -79,5 +79,23 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 - **충실한 재현**: 원본 레이아웃·팔레트·위젯 시각적 동일. 검증: 스크린샷 대조, 채널전환·슬라이더·LOOP토글·피아노클릭·루프드래그 동작, 파형 렌더(무음구간 정확). (Glide/Mono-Poly/Master-Pan은 1b에서 엔진 배선 완료.)
 - **주의**: `ami-node.setSample`는 transfer 미사용(구조화복제) — transfer 시 메인스레드 버퍼 detach로 파형이 빈 데이터를 읽음.
 
+## TODO (남은 작업)
+
+### 기능 마감
+- [ ] **SAVE 버튼** — 현재 no-op. 편집된 샘플(루프포인트/트림 반영) WAV 익스포트. `ami-ui.ts` SAVE onClick.
+- [ ] **MORE SETTINGS 버튼** — 현재 no-op. 부가 패널(ping-pong loop 토글, 8-bit 토글, 샘플레이트 표시 등). 픽셀 UI엔 ping-pong/8bit 컨트롤이 없음(엔진 `CP_PINGPONG`/`CP_EIGHT_BIT`는 존재).
+- [ ] **파형 줌/스크롤** — 하단 스크롤바는 그려지나 풀뷰 고정. 원본 `PixelBuffer` updateZoom 참고해 줌·스크롤 + 줌 상태에서 루프포인트 드래그 정밀도.
+- [ ] **컴퓨터 키보드 옥타브 선택** — 구 HTML UI의 옥타브 셀렉터가 캔버스 전환 때 빠짐(현재 base octave 4 고정). 키(↑/↓) 또는 UI로 노출.
+
+### 마감/폴리시
+- [ ] favicon 404 정리(무해).
+- [ ] 미사용 에셋 활용 검토: `amiwin*.png`(창 스케일 가젯), `AmiLogo.png`, `amiMouseCursor.png`(커스텀 커서).
+- [ ] 샘플 로드 시 파형 줌 리셋/표시 다듬기, 트래시 아이콘 hover(`amiTrashOn.png`).
+
+### 검증/이식 잔여
+- [ ] **실제 MIDI 하드웨어 검증** — 헤드리스 Chrome은 권한 미부여라 noteOn/pitchbend/CC 실기 테스트 필요.
+- [ ] DSP 정밀 회귀: 원본 VST와 동일 샘플·파라미터로 출력 파형 대조(현재는 합성 톤·RMS/FFT 위주 검증).
+- [ ] `reference/` 패리티 도달 시 폴더 정리(원본 repo가 source of truth).
+
 ## 라이선스
 GPL v3. `LICENSE` + `CREDITS.md`(원작자 astriiddev, 필터 출처 8bitbubsy pt2-clone) 유지.
