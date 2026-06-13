@@ -86,7 +86,7 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 - [x] **MORE SETTINGS** — 모달 오버레이로 8-bit·ping-pong loop 토글 노출(`ami-ui.ts` overlayWidgets/moreOpen).
 - [x] **컴퓨터 키보드 옥타브** — `−`/`=`(및 numpad)로 base octave 시프트, 상태줄 표시(`main.ts`).
 - [x] **파형 줌/스크롤** — `waveform-canvas.ts`에 viewStart/viewLen 윈도우. 휠 줌(커서 중심), 스크롤바 썸 드래그/트랙 페이징, 줌인 시 라인모드/줌아웃 시 min·max 엔벨로프. 루프포인트 드래그는 뷰 기준 매핑. Widget에 `onWheel` 추가.
-- [ ] **샘플 트림** — SAVE를 루프영역/선택구간만 익스포트하도록 확장.
+- [x] **샘플 트림** — MORE 패널의 "TRIM TO LOOP" 버튼이 활성 채널 샘플을 루프영역으로 크롭(엔진 재주입·루프 0~len 리셋·파형 갱신). 이후 SAVE로 트림본 익스포트.
 
 ### 마감/폴리시
 - [ ] favicon 404 정리(무해).

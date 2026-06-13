@@ -154,6 +154,29 @@ export class AmiUI {
     this.refreshWaveform();
   }
 
+  private trimActiveToLoop(): void {
+    const ch = this.activeCh;
+    const s = this.samples[ch];
+    if (!s || s.frames <= 0) return;
+    let start = Math.max(0, Math.min(s.frames, Math.round(this.getChan(CP.LOOP_START))));
+    let end = Math.round(this.getChan(CP.LOOP_END));
+    if (end <= 0 || end > s.frames) end = s.frames;
+    if (end - start < 1) return;
+    const len = end - start;
+    const trimmed: SampleData = {
+      left: s.left.slice(start, end),
+      right: s.right ? s.right.slice(start, end) : null,
+      channels: s.channels,
+      sourceRate: s.sourceRate,
+      frames: len,
+    };
+    this.samples[ch] = trimmed;
+    this.node?.setSample(ch, trimmed);
+    this.setChan(CP.LOOP_START, 0);
+    this.setChan(CP.LOOP_END, len);
+    this.refreshWaveform();
+  }
+
   private saveActive(): void {
     const s = this.samples[this.activeCh];
     if (!s || s.frames <= 0) return;
@@ -271,8 +294,12 @@ export class AmiUI {
 
     // MORE settings overlay (engine params not on the main panel)
     const p = MORE_PANEL;
-    this.overlayWidgets.push(chk({ x: p.x + 30, y: p.y + 50, w: 200, h: 24 }, "8-bit", CP.EIGHT_BIT));
-    this.overlayWidgets.push(chk({ x: p.x + 30, y: p.y + 84, w: 200, h: 24 }, "Ping-pong loop", CP.PINGPONG));
+    this.overlayWidgets.push(chk({ x: p.x + 30, y: p.y + 46, w: 200, h: 24 }, "8-bit", CP.EIGHT_BIT));
+    this.overlayWidgets.push(chk({ x: p.x + 30, y: p.y + 78, w: 200, h: 24 }, "Ping-pong loop", CP.PINGPONG));
+    this.overlayWidgets.push(new Button({
+      rect: { x: p.x + 30, y: p.y + 110, w: 160, h: 28 }, label: "TRIM TO LOOP",
+      onClick: () => { this.trimActiveToLoop(); this.moreOpen = false; },
+    }));
     this.overlayWidgets.push(new Button({
       rect: { x: p.x + p.w - 110, y: p.y + p.h - 44, w: 90, h: 30 }, label: "CLOSE",
       onClick: () => { this.moreOpen = false; },
