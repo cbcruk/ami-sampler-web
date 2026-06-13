@@ -1,4 +1,5 @@
 import { AmiNode, type SampleData } from "../../audio/ami-node";
+import { encodeWav } from "../../audio/wav-encoder";
 import { ChanParamId, GlobalParamId, NUM_CHANNELS } from "../../audio/param-ids";
 import type { AmiAssets } from "./assets";
 import { AMI_BLU, AMI_BLL, AMI_BLD, AMI_WHT, AMI_RED, AMI_GRN } from "./palette";
@@ -150,6 +151,17 @@ export class AmiUI {
     this.refreshWaveform();
   }
 
+  private saveActive(): void {
+    const s = this.samples[this.activeCh];
+    if (!s || s.frames <= 0) return;
+    const url = URL.createObjectURL(encodeWav(s));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${this.names[this.activeCh] || `channel-${this.activeCh + 1}`}.wav`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   private selectChannel(ch: number): void {
     this.activeCh = ch;
     this.node?.setMeterChannel(ch);
@@ -248,7 +260,7 @@ export class AmiUI {
 
     // load / save / more / trash
     W_.push(new Button({ rect: rel(0.89, 0.737, 0.1, 0.051), label: "LOAD", onClick: () => this.o.onLoadClick() }));
-    W_.push(new Button({ rect: rel(0.89, 0.785, 0.1, 0.051), label: "SAVE", onClick: () => {} }));
+    W_.push(new Button({ rect: rel(0.89, 0.785, 0.1, 0.051), label: "SAVE", onClick: () => this.saveActive() }));
     W_.push(new Button({ rect: rel(0.72, 0.785, 0.15, 0.051), label: "MORE", onClick: () => {} }));
     W_.push(new Button({ rect: rel(0.875, 0.86, 0.1, 0.05), label: "TRASH", onClick: () => this.clearActiveChannel() }));
 
