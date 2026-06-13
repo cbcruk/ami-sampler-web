@@ -18,9 +18,11 @@ const CHAN_DEFAULTS: Record<number, number> = {
   [CP.PINGPONG]: 0, [CP.ATTACK]: 0.001, [CP.DECAY]: 0.1, [CP.SUSTAIN]: 1, [CP.RELEASE]: 0.05,
   [CP.VOLUME]: 1, [CP.PAN]: 128, [CP.ROOT_NOTE]: 60, [CP.FINETUNE]: 0, [CP.MUTE]: 0,
   [CP.SOLO]: 0, [CP.PAULA_STEREO]: 0, [CP.MIDI_CHAN]: 0, [CP.LOW_NOTE]: 0, [CP.HIGH_NOTE]: 127,
+  [CP.GLIDE]: 1, [CP.WIDTH]: 255, [CP.VOICE_MODE]: 8,
 };
 const GLOBAL_DEFAULTS: Record<number, number> = {
   [GP.A500]: 1, [GP.LED]: 0, [GP.MASTER_VOL]: 1, [GP.VIBE_SPEED]: 5, [GP.MOD_INTENSITY]: 0,
+  [GP.MASTER_PAN]: 128,
 };
 
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -179,19 +181,25 @@ export class AmiUI {
       });
 
     const W_ = this.widgets;
+    const paulaOn = (): boolean => this.getChan(CP.PAULA_STEREO) !== 0;
     // channel sliders
     W_.push(slider(rel(0.06, 0.513, 0.15, 0.05), "Chan\nVolume", CP.VOLUME, 0, 1, "chan"));
-    W_.push(slider(rel(0.06, 0.563, 0.15, 0.05), "Chan\nPanning", CP.PAN, 0, 255, "chan", true));
+    // pan slider doubles as Paula stereo width when Paula is on (mirrors the original)
+    W_.push(new Slider({
+      rect: rel(0.06, 0.563, 0.15, 0.05), label: "Chan\nPan/Wid", min: 0, max: 255, integer: true,
+      get: () => (paulaOn() ? this.getChan(CP.WIDTH) : this.getChan(CP.PAN)),
+      set: (v) => (paulaOn() ? this.setChan(CP.WIDTH, v) : this.setChan(CP.PAN, v)),
+    }));
     W_.push(slider(rel(0.3, 0.513, 0.15, 0.05), "Attack", CP.ATTACK, 0, 2, "chan"));
     W_.push(slider(rel(0.3, 0.563, 0.15, 0.05), "Decay", CP.DECAY, 0, 4, "chan"));
     W_.push(slider(rel(0.3, 0.613, 0.15, 0.05), "Sustain", CP.SUSTAIN, 0, 1, "chan"));
     W_.push(slider(rel(0.3, 0.663, 0.15, 0.05), "Release", CP.RELEASE, 0, 3, "chan"));
     W_.push(slider(rel(0.52, 0.513, 0.15, 0.05), "Sample\n& Hold", CP.SNH, 1, 32, "chan", true));
-    W_.push(slider(rel(0.52, 0.563, 0.15, 0.05), "Glide", CP.LOOP_START, 1, 100, "chan", true, true)); // UI-only
+    W_.push(slider(rel(0.52, 0.563, 0.15, 0.05), "Glide", CP.GLIDE, 1, 100, "chan", true));
     W_.push(slider(rel(0.72, 0.632, 0.15, 0.05), "Fine\nTune", CP.FINETUNE, -100, 100, "chan", true));
     // master / vibe
     W_.push(slider(rel(0.24, 0.735, 0.21, 0.05), "Master\nVolume", GP.MASTER_VOL, 0, 1, "global"));
-    W_.push(slider(rel(0.24, 0.785, 0.21, 0.05), "Master\nPanning", GP.MASTER_VOL, 0, 255, "global", true, true)); // UI-only
+    W_.push(slider(rel(0.24, 0.785, 0.21, 0.05), "Master\nPanning", GP.MASTER_PAN, 0, 255, "global", true));
     W_.push(slider(rel(0.51, 0.735, 0.19, 0.05), "Vibe\nSpeed", GP.VIBE_SPEED, 1, 10, "global", true));
     W_.push(slider(rel(0.51, 0.785, 0.19, 0.05), "Vibe\nAmount", GP.MOD_INTENSITY, 0, 127, "global", true));
 
@@ -217,10 +225,16 @@ export class AmiUI {
       });
     W_.push(chk(rel(0.165, 0.625, 0.07, 0.035), "Mute", CP.MUTE));
     W_.push(chk(rel(0.165, 0.67, 0.07, 0.035), "Solo", CP.SOLO));
-    // UI-only voice mode (disabled), drawn as static checkboxes
-    W_.push(new Checkbox({ rect: rel(0.085, 0.61, 0.07, 0.035), boxSize: 14, label: "Mono", disabled: true, get: () => false, set: () => {} }));
-    W_.push(new Checkbox({ rect: rel(0.085, 0.645, 0.08, 0.035), boxSize: 14, label: "PT Poly", disabled: true, get: () => false, set: () => {} }));
-    W_.push(new Checkbox({ rect: rel(0.085, 0.68, 0.09, 0.035), boxSize: 14, label: "Octa Poly", disabled: true, get: () => true, set: () => {} }));
+    // voice mode radio: Mono(1) / PT Poly(4) / Octa Poly(8) -> CP_VOICE_MODE
+    const voiceMode = (rect: Rect, label: string, count: number): Checkbox =>
+      new Checkbox({
+        rect, boxSize: 14, label,
+        get: () => this.getChan(CP.VOICE_MODE) === count,
+        set: () => this.setChan(CP.VOICE_MODE, count),
+      });
+    W_.push(voiceMode(rel(0.085, 0.61, 0.07, 0.035), "Mono", 1));
+    W_.push(voiceMode(rel(0.085, 0.645, 0.08, 0.035), "PT Poly", 4));
+    W_.push(voiceMode(rel(0.085, 0.68, 0.09, 0.035), "Octa Poly", 8));
 
     // MIDI steppers
     W_.push(new Stepper({ rect: rel(0.515, 0.63, 0.035, 0.05), min: 0, max: 16, get: () => this.getChan(CP.MIDI_CHAN), set: (v) => this.setChan(CP.MIDI_CHAN, v), format: (v) => (v === 0 ? "ALL" : String(v)) }));

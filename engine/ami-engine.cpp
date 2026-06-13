@@ -52,6 +52,9 @@ enum ChanParamId {
     CP_MIDI_CHAN    = 17,  // 0 = omni, 1..16
     CP_LOW_NOTE     = 18,  // 0..127
     CP_HIGH_NOTE    = 19,  // 0..127
+    CP_GLIDE        = 20,  // glissando time ms (1..100); <=1 disables (mono only)
+    CP_WIDTH        = 21,  // Paula stereo width (0..255), 255 = full hard pan
+    CP_VOICE_MODE   = 22,  // voice count: 1 (mono), 4, or 8
     CP__COUNT
 };
 
@@ -61,6 +64,7 @@ enum GlobalParamId {
     GP_MASTER_VOL    = 2,
     GP_VIBE_SPEED    = 3,   // vibrato LFO speed (1..10)
     GP_MOD_INTENSITY = 4,   // CC#1 mod wheel (0..127)
+    GP_MASTER_PAN    = 5,   // 0..255, 128 = center
     GP__COUNT
 };
 
@@ -166,11 +170,25 @@ struct Voice {
     int  note = 0;
     int  midiChannel = 1; // note's MIDI channel (1..16), for pitch-bend lookup
     double pos = 0.0;
-    double pitchRatio = 1.0;
+    double pitchRatio = 1.0;  // current ratio (slides toward pitchTarget in mono); excludes finetune
+    double pitchTarget = 1.0; // target ratio for the held note (excludes finetune)
+    double glissRatio = 0.0;  // per-sample slide increment (mono glissando)
+    double fineTune = 1.0;    // 1 + cents/1200
+    bool slideUp = true;
     float gain = 0.f;
     bool forward = true;
     float panLGain = 1.f, panRGain = 1.f; // Paula stereo: frozen 0/1 at note-on
     ADSR adsr;
+
+    // gliss2pitch (AmiSamplerSound.cpp:256) — mono slide toward target
+    double glissPitch(bool mono) {
+        double nextPitch = pitchRatio + glissRatio;
+        if (!mono) return pitchTarget;
+        if (pitchRatio <= 0) return pitchTarget;
+        if (slideUp && nextPitch > pitchTarget) return pitchTarget;
+        if (!slideUp && nextPitch < pitchTarget) return pitchTarget;
+        return nextPitch;
+    }
 };
 
 // ----------------------------------------------------------------------------
@@ -191,6 +209,7 @@ struct Channel {
         params[CP_ATTACK] = 0.001f; params[CP_DECAY] = 0.1f; params[CP_RELEASE] = 0.05f;
         params[CP_ROOT_NOTE] = 60;
         params[CP_MIDI_CHAN] = 0; params[CP_LOW_NOTE] = 0; params[CP_HIGH_NOTE] = 127;
+        params[CP_GLIDE] = 1; params[CP_WIDTH] = 255; params[CP_VOICE_MODE] = 8;
         for (auto& v : voices) v = Voice();
         sampleFrames = 0; sampleChannels = 1; sourceRate = 44100.0; panCounter = 0;
     }
@@ -249,6 +268,7 @@ struct Engine {
         std::memset(gparams, 0, sizeof(gparams));
         gparams[GP_A500] = 1; gparams[GP_MASTER_VOL] = 1;
         gparams[GP_VIBE_SPEED] = 5; gparams[GP_MOD_INTENSITY] = 0;
+        gparams[GP_MASTER_PAN] = 128;
         for (int i = 0; i < 17; i++) bend[i] = 1.0;
         vibeRate = 0.0; vibeRatio = 1.0;
         for (auto& c : channels) c.initParams();
@@ -328,33 +348,54 @@ void ami_note_on(int midiNote, int midiChannel, float velocity) {
         // nothing loaded
         if (c.sampleFrames <= 0) continue;
 
-        // find a free voice, else steal the lowest-envelope
-        int idx = -1;
-        for (int i = 0; i < VOICES_PER_CHANNEL; i++) if (!c.voices[i].active) { idx = i; break; }
-        if (idx < 0) {
-            float lowest = 1e9f;
-            for (int i = 0; i < VOICES_PER_CHANNEL; i++)
-                if (c.voices[i].adsr.level < lowest) { lowest = c.voices[i].adsr.level; idx = i; }
+        int voiceCount = (int)c.params[CP_VOICE_MODE];
+        if (voiceCount < 1) voiceCount = 1;
+        if (voiceCount > VOICES_PER_CHANNEL) voiceCount = VOICES_PER_CHANNEL;
+        const bool mono = voiceCount <= 1;
+        const double glide = c.params[CP_GLIDE];
+        const int root = (int)c.params[CP_ROOT_NOTE];
+        const double finetune = 1.0 + c.params[CP_FINETUNE] / 1200.0;
+        const double target = std::pow(2.0, (double)(midiNote - root) / 12.0) * (c.sourceRate / e.devRate);
+
+        // allocate a voice among the first `voiceCount`; mono always uses voice 0
+        int idx = 0;
+        if (!mono) {
+            idx = -1;
+            for (int i = 0; i < voiceCount; i++) if (!c.voices[i].active) { idx = i; break; }
+            if (idx < 0) {
+                float lowest = 1e9f;
+                for (int i = 0; i < voiceCount; i++)
+                    if (c.voices[i].adsr.level < lowest) { lowest = c.voices[i].adsr.level; idx = i; }
+            }
         }
         Voice& v = c.voices[idx];
-        int root = (int)c.params[CP_ROOT_NOTE];
-        double finetune = 1.0 + c.params[CP_FINETUNE] / 1200.0;
+
+        // mono + glide>1 with a still-sounding voice: legato slide (keep pos/envelope)
+        const bool legato = mono && v.active && glide > 1.0;
+
         v.note = midiNote;
         v.midiChannel = (midiChannel < 1 || midiChannel > 16) ? 1 : midiChannel;
-        v.pitchRatio = std::pow(2.0, (double)(midiNote - root) / 12.0) * (c.sourceRate / e.devRate) * finetune;
-        v.pos = 0.0;
+        v.fineTune = finetune;
+        v.pitchTarget = target;
+        v.slideUp = target > v.pitchRatio;
+        v.glissRatio = (mono && glide > 1.0) ? (target - v.pitchRatio) / (glide * e.devRate * 0.01) : 0.0;
         v.gain = velocity;
-        v.forward = true;
-        v.adsr.sampleRate = (float)e.devRate;
-        v.adsr.attack = c.params[CP_ATTACK];
-        v.adsr.decay = c.params[CP_DECAY];
-        v.adsr.sustain = c.params[CP_SUSTAIN];
-        v.adsr.release = c.params[CP_RELEASE];
-        v.adsr.noteOn();
+
+        if (!legato) {
+            v.pos = 0.0;
+            v.forward = true;
+            v.pitchRatio = target;
+            v.adsr.sampleRate = (float)e.devRate;
+            v.adsr.attack = c.params[CP_ATTACK];
+            v.adsr.decay = c.params[CP_DECAY];
+            v.adsr.sustain = c.params[CP_SUSTAIN];
+            v.adsr.release = c.params[CP_RELEASE];
+            v.adsr.noteOn();
+        }
         v.active = true;
 
-        // Paula stereo: alternate hard L/R per voice (incPanCount / shouldPan)
-        if (c.params[CP_PAULA_STEREO] != 0.f) {
+        // Paula stereo (poly only): alternate hard L/R per voice (incPanCount / shouldPan)
+        if (c.params[CP_PAULA_STEREO] != 0.f && voiceCount > 1) {
             int side = c.panCounter % 2;
             v.panLGain = side == 0 ? 1.f : 0.f;
             v.panRGain = side == 1 ? 1.f : 0.f;
@@ -404,7 +445,11 @@ void ami_process(int numFrames) {
         const float vol = c.params[CP_VOLUME];
         const float pan = c.params[CP_PAN];
         const bool stereoSrc = c.sampleChannels > 1;
-        const bool paula = c.params[CP_PAULA_STEREO] != 0.f;
+        int voiceCount = (int)c.params[CP_VOICE_MODE];
+        if (voiceCount < 1) voiceCount = 1;
+        const bool mono = voiceCount <= 1;
+        const bool stereoOn = c.params[CP_PAULA_STEREO] != 0.f && voiceCount > 1;
+        const float width = c.params[CP_WIDTH] / 255.f;
 
         // channel pan (non-Paula): mirrors handleChannelPanning else-branch
         const float panL = pan <= 128 ? 1.f : std::abs(pan - 255.f) / 127.f;
@@ -416,11 +461,7 @@ void ami_process(int numFrames) {
         for (auto& v : c.voices) {
             if (!v.active) continue;
 
-            const float lMul = paula ? v.panLGain : panL;
-            const float rMul = paula ? v.panRGain : panR;
-            // totalPitchRatio = pitchRatio * vibrato * fineTune * bendRatio
-            // (fineTune already folded into pitchRatio at note-on)
-            const double step = v.pitchRatio * e.bend[v.midiChannel] * vibe;
+            const double bendVibe = e.bend[v.midiChannel] * vibe * v.fineTune;
 
             for (int n = 0; n < numFrames; n++) {
                 int pos = (int)std::floor(v.pos);
@@ -437,8 +478,20 @@ void ami_process(int numFrames) {
                 sl = -sl; sr = -sr;
 
                 float env = v.adsr.next();
-                float l = sl * v.gain * vol * env * lMul;
-                float r = sr * v.gain * vol * env * rMul;
+                // totalPitchRatio = pitchRatio (slid) * vibrato * fineTune * bendRatio
+                const double step = (v.pitchRatio = v.glissPitch(mono)) * bendVibe;
+
+                float base = v.gain * vol * env;
+                float l = sl * base;
+                float r = sr * base;
+                if (stereoOn) {
+                    l *= v.panLGain; r *= v.panRGain;
+                    const float wl = l * width + r * std::abs(1.f - width);
+                    const float wr = r * width + l * std::abs(1.f - width);
+                    l = wl; r = wr;
+                } else {
+                    l *= panL; r *= panR;
+                }
 
                 g_outL[n] += l;
                 g_outR[n] += r;
@@ -469,6 +522,9 @@ void ami_process(int numFrames) {
     const bool isA500 = e.gparams[GP_A500] != 0.f;
     const bool ledOn = e.gparams[GP_LED] != 0.f;
     const float mvol = e.gparams[GP_MASTER_VOL];
+    const float mpan = e.gparams[GP_MASTER_PAN];
+    const float mpanL = mpan <= 128 ? 1.f : std::abs(mpan - 255.f) / 127.f;
+    const float mpanR = mpan >= 128 ? 1.f : mpan / 127.f;
     for (int n = 0; n < numFrames; n++) {
         e.incVibratoTable();
         float l = g_outL[n], r = g_outR[n];
@@ -480,8 +536,8 @@ void ami_process(int numFrames) {
             onePoleHP(&e.a1200Hi, l, r, &fl, &fr);
         }
         if (ledOn) twoPoleLP(&e.led, fl, fr, &fl, &fr);
-        g_outL[n] = fl * mvol;
-        g_outR[n] = fr * mvol;
+        g_outL[n] = fl * mvol * mpanL;
+        g_outR[n] = fr * mvol * mpanR;
     }
 }
 

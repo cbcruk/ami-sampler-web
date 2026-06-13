@@ -54,13 +54,14 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 
 **마일스톤 1(12 샘플러 채널) 코어 완료·브라우저 검증됨.** 12채널 독립 샘플/파라미터/보이스, MIDI 채널·노트범위 라우팅, mute/solo 게이팅, Paula 스테레오 교대 하드팬(첫 노트 L, 원본 `shouldPan`과 일치), per-channel vol/pan/ADSR/loop/8bit/S&H/finetune/root. UI는 1–12 채널 셀렉터로 단일 패널 재타게팅 + 전역 패널(A500/LED/Master). 엔진은 `(channel,id)` 페어 메시지 스킴(`ami_set_chan_param`/`ami_set_global_param`), per-channel 고정 샘플버퍼(1M frames), `INITIAL_MEMORY=128MB`.
 
-**남은 채널 기능(M3 Web MIDI와 함께):** 글리산도, mono/poly 보이스 수(1/4/8), Paula width, 비브라토 LFO(CC#1).
+**전 마일스톤(1–4) + 잔여 채널 기능 완료·브라우저 검증됨.** 원본 기능 패리티 달성.
 
-## 다음 마일스톤
+## 완료된 마일스톤
 
-### 1b. 12채널 잔여 기능 (M3과 함께)
-- 글리산도(mono 모드 피치 슬라이드), mono/poly voice-count 셀렉터, Paula width, 비브라토 LFO.
-- 원본 `AmiSamplerVoice.cpp` gliss2pitch / `PluginProcessor.cpp` incVibratoTable 참고.
+### 1b. 12채널 잔여 기능 — ✅ 완료
+- 엔진: `CP_GLIDE`/`CP_WIDTH`/`CP_VOICE_MODE`(1/4/8) + `GP_MASTER_PAN`. Voice에 `pitchTarget/glissRatio/slideUp/fineTune`; `glissPitch`(원본 gliss2pitch). 모노 레가토(보이스0 재사용·피치슬라이드), 폴리 할당은 `voiceCount` 내. Paula 스테레오는 폴리(>1보이스)에서만, width 믹스(`handleChannelPanning` stereo 분기). 마스터팬은 필터 뒤.
+- UI: Mono/PT Poly/Octa Poly 라디오(→VOICE_MODE 1/4/8), Glide 슬라이더, Master Panning 활성화. Chan 패닝 슬라이더는 Paula on 시 width로 전환("Chan Pan/Wid").
+- 검증: 마스터팬(0→L/255→R), 글리산도 자기상관 궤적(200→441 점진 슬라이드, glide=1 즉시), 보이스수(모노=1교체/폴리=2), Paula width(255 하드팬교대/128 센터블렌드) 확인.
 
 ### 2. IFF / BRR / µ-law 파서 — ✅ 완료
 - `web/src/audio/sample-formats/{iff-8svx,brr,mulaw}.ts`, `wav-loader.ts`가 디스패치(8SVX는 매직넘버, BRR/µ-law는 확장자/크기). 원본 `astro_formats/` 1:1 포팅.
@@ -75,8 +76,7 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 ### 4. 픽셀아트 UI — ✅ 완료
 - `web/src/ui/ami/`: `palette.ts`(ami_palette 색상), `draw.ts`(베벨/체커슬라이더/버튼 프리미티브), `assets.ts`(amidos.ttf @font-face + PNG), `widgets.ts`(Slider/Button/Checkbox/Stepper), `waveform-canvas.ts`(파란 배경/흰 파형/주황 센터라인/F·E/루프드래그), `sample-list.ts`(01–12 채널 셀렉터), `piano-canvas.ts`(흰건반+pixelkey_black 스프라이트+16진 라벨+범위 오버레이), `ami-ui.ts`(1080×640 단일 캔버스 즉시모드 컨트롤러·포인터 라우팅·채널 미러·AmiNode 배선).
 - 에셋은 `Res/`→`web/public/res/` 복사. `index.html`은 캔버스 마운트 + 정수 스케일(`image-rendering:pixelated`).
-- **충실한 재현**: 원본 레이아웃·팔레트·위젯 시각적 동일. 검증: 스크린샷 대조, 채널전환·슬라이더·LOOP토글·피아노클릭·루프드래그 동작, 파형 렌더(무음구간 정확).
-- **UI-only(엔진 미배선)**: Glide(글리산도), Mono/PT Poly/Octa Poly(보이스수), Master Panning. 잔여 채널 기능 배선 시 활성화.
+- **충실한 재현**: 원본 레이아웃·팔레트·위젯 시각적 동일. 검증: 스크린샷 대조, 채널전환·슬라이더·LOOP토글·피아노클릭·루프드래그 동작, 파형 렌더(무음구간 정확). (Glide/Mono-Poly/Master-Pan은 1b에서 엔진 배선 완료.)
 - **주의**: `ami-node.setSample`는 transfer 미사용(구조화복제) — transfer 시 메인스레드 버퍼 detach로 파형이 빈 데이터를 읽음.
 
 ## 라이선스

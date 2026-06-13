@@ -22,6 +22,9 @@ export const ChanParamId = {
   MIDI_CHAN: 17,
   LOW_NOTE: 18,
   HIGH_NOTE: 19,
+  GLIDE: 20,
+  WIDTH: 21,
+  VOICE_MODE: 22,
 } as const;
 
 export type ChanParamId = (typeof ChanParamId)[keyof typeof ChanParamId];
@@ -32,6 +35,7 @@ export const GlobalParamId = {
   MASTER_VOL: 2,
   VIBE_SPEED: 3,
   MOD_INTENSITY: 4,
+  MASTER_PAN: 5,
 } as const;
 
 export type GlobalParamId = (typeof GlobalParamId)[keyof typeof GlobalParamId];
