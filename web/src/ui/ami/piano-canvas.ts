@@ -80,6 +80,17 @@ export class PianoCanvas implements Widget {
         ctx.fillRect(b.x, b.y, b.w, b.h);
       }
     }
+    // pressed-key highlight
+    if (this.pressed !== null) {
+      ctx.fillStyle = "rgba(252,138,0,0.55)";
+      if (isWhite(this.pressed)) {
+        const x = this.whiteX(this.pressed);
+        ctx.fillRect(x, r.y, this.whiteW - 1, r.h);
+      } else {
+        const b = this.blackRect(this.pressed);
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+      }
+    }
   }
 
   private noteAt(x: number, y: number): number | null {
@@ -105,6 +116,20 @@ export class PianoCanvas implements Widget {
     if (n === null) return;
     this.pressed = n;
     this.o.onNoteOn(n);
+  }
+
+  // drag across keys: release the old note and trigger the one under the cursor
+  onDrag(x: number, y: number): void {
+    if (this.pressed === null) return;
+    const n = this.noteAt(x, y);
+    if (n === this.pressed) return;
+    this.o.onNoteOff(this.pressed);
+    if (n === null) {
+      this.pressed = null;
+    } else {
+      this.o.onNoteOn(n);
+      this.pressed = n;
+    }
   }
 
   onUp(): void {
