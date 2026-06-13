@@ -82,10 +82,11 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 ## TODO (남은 작업)
 
 ### 기능 마감
-- [ ] **SAVE 버튼** — 현재 no-op. 편집된 샘플(루프포인트/트림 반영) WAV 익스포트. `ami-ui.ts` SAVE onClick.
-- [ ] **MORE SETTINGS 버튼** — 현재 no-op. 부가 패널(ping-pong loop 토글, 8-bit 토글, 샘플레이트 표시 등). 픽셀 UI엔 ping-pong/8bit 컨트롤이 없음(엔진 `CP_PINGPONG`/`CP_EIGHT_BIT`는 존재).
+- [x] **SAVE 버튼** — `wav-encoder.ts`(16-bit PCM) + `ami-ui.saveActive`로 활성 채널 WAV 다운로드. (루프/트림 반영 익스포트는 추후.)
+- [x] **MORE SETTINGS** — 모달 오버레이로 8-bit·ping-pong loop 토글 노출(`ami-ui.ts` overlayWidgets/moreOpen).
+- [x] **컴퓨터 키보드 옥타브** — `−`/`=`(및 numpad)로 base octave 시프트, 상태줄 표시(`main.ts`).
 - [ ] **파형 줌/스크롤** — 하단 스크롤바는 그려지나 풀뷰 고정. 원본 `PixelBuffer` updateZoom 참고해 줌·스크롤 + 줌 상태에서 루프포인트 드래그 정밀도.
-- [ ] **컴퓨터 키보드 옥타브 선택** — 구 HTML UI의 옥타브 셀렉터가 캔버스 전환 때 빠짐(현재 base octave 4 고정). 키(↑/↓) 또는 UI로 노출.
+- [ ] **샘플 트림** — SAVE를 루프영역/선택구간만 익스포트하도록 확장.
 
 ### 마감/폴리시
 - [ ] favicon 404 정리(무해).
