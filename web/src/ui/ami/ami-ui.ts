@@ -3,7 +3,7 @@ import { encodeWav } from "../../audio/wav-encoder";
 import { ChanParamId, GlobalParamId, NUM_CHANNELS } from "../../audio/param-ids";
 import type { AmiAssets } from "./assets";
 import { AMI_BLU, AMI_BLL, AMI_BLD, AMI_WHT, AMI_RED, AMI_GRN } from "./palette";
-import { type Rect, bevel, text } from "./draw";
+import { type Rect, bevel, text, inRect } from "./draw";
 import { type Widget, Slider, Button, Checkbox, Stepper } from "./widgets";
 import { WaveformCanvas } from "./waveform-canvas";
 import { SampleList } from "./sample-list";
@@ -11,6 +11,7 @@ import { PianoCanvas } from "./piano-canvas";
 
 const W = 1080;
 const H = 640;
+const MORE_PANEL: Rect = { x: 340, y: 372, w: 400, h: 172 };
 const CP = ChanParamId;
 const GP = GlobalParamId;
 
@@ -45,6 +46,8 @@ export class AmiUI {
   private ctx: CanvasRenderingContext2D;
   private node: AmiNode | null = null;
   private widgets: Widget[] = [];
+  private overlayWidgets: Widget[] = [];
+  private moreOpen = false;
   private active: Widget | null = null;
 
   private chanState: Map<number, number>[] = [];
@@ -261,10 +264,19 @@ export class AmiUI {
     // load / save / more / trash
     W_.push(new Button({ rect: rel(0.89, 0.737, 0.1, 0.051), label: "LOAD", onClick: () => this.o.onLoadClick() }));
     W_.push(new Button({ rect: rel(0.89, 0.785, 0.1, 0.051), label: "SAVE", onClick: () => this.saveActive() }));
-    W_.push(new Button({ rect: rel(0.72, 0.785, 0.15, 0.051), label: "MORE", onClick: () => {} }));
+    W_.push(new Button({ rect: rel(0.72, 0.785, 0.15, 0.051), label: "MORE", onClick: () => { this.moreOpen = true; } }));
     W_.push(new Button({ rect: rel(0.875, 0.86, 0.1, 0.05), label: "TRASH", onClick: () => this.clearActiveChannel() }));
 
     W_.push(this.waveform, this.sampleList, this.piano);
+
+    // MORE settings overlay (engine params not on the main panel)
+    const p = MORE_PANEL;
+    this.overlayWidgets.push(chk({ x: p.x + 30, y: p.y + 50, w: 200, h: 24 }, "8-bit", CP.EIGHT_BIT));
+    this.overlayWidgets.push(chk({ x: p.x + 30, y: p.y + 84, w: 200, h: 24 }, "Ping-pong loop", CP.PINGPONG));
+    this.overlayWidgets.push(new Button({
+      rect: { x: p.x + p.w - 110, y: p.y + p.h - 44, w: 90, h: 30 }, label: "CLOSE",
+      onClick: () => { this.moreOpen = false; },
+    }));
   }
 
   // ---- pointer ----
@@ -275,6 +287,19 @@ export class AmiUI {
   private attachPointer(): void {
     this.o.canvas.addEventListener("mousedown", (e) => {
       const { x, y } = this.toLogical(e);
+      // modal: when the MORE overlay is open, route only to it; click outside closes
+      if (this.moreOpen) {
+        for (let i = this.overlayWidgets.length - 1; i >= 0; i--) {
+          const w = this.overlayWidgets[i];
+          if (w.hit(x, y)) {
+            this.active = w;
+            w.onDown?.(x, y);
+            return;
+          }
+        }
+        if (!inRect(MORE_PANEL, x, y)) this.moreOpen = false;
+        return;
+      }
       for (let i = this.widgets.length - 1; i >= 0; i--) {
         const w = this.widgets[i];
         if (w.hit(x, y)) {
@@ -356,5 +381,16 @@ export class AmiUI {
     ctx.drawImage(this.o.assets.trashOff, trash.x, trash.y, trash.w, trash.h);
 
     for (const w of this.widgets) w.draw(ctx);
+
+    if (this.moreOpen) {
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.fillRect(0, 0, W, H);
+      const p = MORE_PANEL;
+      ctx.fillStyle = AMI_BLU;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      bevel(ctx, p, AMI_BLL, AMI_BLD, 3);
+      text(ctx, "MORE SETTINGS", p.x + p.w / 2, p.y + 14, 18, AMI_WHT, "center");
+      for (const w of this.overlayWidgets) w.draw(ctx);
+    }
   }
 }
