@@ -84,6 +84,23 @@ async function main(): Promise<void> {
   keyboard.attach();
   void midi.start();
 
+  // computer-keyboard octave shift (− / =), restoring the old octave selector
+  const showOctave = (): void => {
+    $("#status").textContent = `octave ${keyboard.getBaseOctave()}  (− / = to shift)`;
+  };
+  window.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.code === "Minus" || e.code === "NumpadSubtract") {
+      keyboard.setBaseOctave(keyboard.getBaseOctave() - 1);
+      showOctave();
+      e.preventDefault();
+    } else if (e.code === "Equal" || e.code === "NumpadAdd") {
+      keyboard.setBaseOctave(keyboard.getBaseOctave() + 1);
+      showOctave();
+      e.preventDefault();
+    }
+  });
+
   fileInput.addEventListener("change", async (e) => {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (file) await loadFile(file);
