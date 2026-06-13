@@ -1,0 +1,12 @@
+.DS_Store
+
+# Emscripten SDK (local tool, ~1.6 GB — install separately, see README)
+web-build/
+
+# Node / Vite
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Build artifacts
+web/public/wasm/*.wasm
