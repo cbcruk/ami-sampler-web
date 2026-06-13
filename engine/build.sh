@@ -3,8 +3,12 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
-EMSDK="$(cd ../web-build/emsdk && pwd)"
-source "$EMSDK/emsdk_env.sh" >/dev/null 2>&1
+# Use emcc from PATH when available (e.g. CI via setup-emsdk); otherwise
+# fall back to the local emsdk checkout under web-build/.
+if ! command -v emcc >/dev/null 2>&1; then
+  EMSDK="$(cd ../web-build/emsdk && pwd)"
+  source "$EMSDK/emsdk_env.sh" >/dev/null 2>&1
+fi
 
 OUT_DIR="../web/public/wasm"
 mkdir -p "$OUT_DIR"

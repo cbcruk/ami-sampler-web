@@ -9,6 +9,7 @@ import { AmiUI } from "./ui/ami/ami-ui";
 const LOGICAL_W = 1080;
 const LOGICAL_H = 640;
 const KEYBOARD_MIDI_CHANNEL = 1;
+const BASE = import.meta.env.BASE_URL; // "/" locally, "/<repo>/" on GitHub Pages
 
 const $ = <T extends HTMLElement>(sel: string): T => {
   const el = document.querySelector<T>(sel);
@@ -42,7 +43,7 @@ async function ensureAudio(): Promise<AmiNode> {
   const ctx = new AudioContext();
   await ctx.resume();
   ami = new AmiNode(ctx);
-  await ami.init();
+  await ami.init(`${BASE}wasm/ami-engine.wasm`, `${BASE}ami-processor.js`);
   ami.setMeterCallback((m) => ui.setPlayhead(m.playhead));
   ui.setNode(ami);
   $("#status").textContent = `engine ready @ ${ctx.sampleRate} Hz`;
@@ -75,7 +76,7 @@ async function main(): Promise<void> {
   const canvas = $<HTMLCanvasElement>("#ami");
   const fileInput = $<HTMLInputElement>("#file-input");
 
-  const assets = await loadAssets();
+  const assets = await loadAssets(`${BASE}res`);
   ui = new AmiUI({ canvas, assets, onLoadClick: () => fileInput.click() });
 
   fitCanvas(canvas);

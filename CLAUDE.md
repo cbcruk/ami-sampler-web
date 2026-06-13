@@ -38,6 +38,13 @@ pnpm build          # tsc && vite build (커밋 전 타입체크 겸용)
 ```
 emcc가 없으면 README의 emsdk 설치 절차 참고.
 
+## 배포 (GitHub Pages)
+
+- `.github/workflows/deploy.yml`: main 푸시 시 emsdk 설치 → `build:wasm` → `vite build` → Pages 배포.
+- `vite.config.ts`의 `base`는 `GITHUB_REPOSITORY`에서 repo명 자동 도출(`/<repo>/`), 로컬은 `/`. 런타임 절대경로(wasm/worklet/res)는 `import.meta.env.BASE_URL` 접두(`main.ts`), favicon/커서는 상대경로.
+- `build.sh`는 emcc가 PATH에 있으면(CI) 로컬 emsdk source를 건너뜀.
+- **최초 1회 수동 설정**: GitHub repo 생성·push 후 Settings → Pages → Source를 "GitHub Actions"로 지정.
+
 ## 반드시 지킬 규약
 
 - **파라미터 id 3곳 동기화**: `engine/ami-engine.cpp`의 `enum ParamId` ↔ `web/src/audio/param-ids.ts` ↔ `web/public/ami-processor.js`. 하나 추가하면 셋 다 고칠 것.
