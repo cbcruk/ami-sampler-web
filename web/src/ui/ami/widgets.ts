@@ -8,6 +8,7 @@ export interface Widget {
   onDown?(x: number, y: number): void;
   onDrag?(x: number, y: number): void;
   onUp?(): void;
+  onWheel?(x: number, y: number, deltaY: number): void;
 }
 
 interface SliderOpts {

@@ -85,7 +85,7 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 - [x] **SAVE 버튼** — `wav-encoder.ts`(16-bit PCM) + `ami-ui.saveActive`로 활성 채널 WAV 다운로드. (루프/트림 반영 익스포트는 추후.)
 - [x] **MORE SETTINGS** — 모달 오버레이로 8-bit·ping-pong loop 토글 노출(`ami-ui.ts` overlayWidgets/moreOpen).
 - [x] **컴퓨터 키보드 옥타브** — `−`/`=`(및 numpad)로 base octave 시프트, 상태줄 표시(`main.ts`).
-- [ ] **파형 줌/스크롤** — 하단 스크롤바는 그려지나 풀뷰 고정. 원본 `PixelBuffer` updateZoom 참고해 줌·스크롤 + 줌 상태에서 루프포인트 드래그 정밀도.
+- [x] **파형 줌/스크롤** — `waveform-canvas.ts`에 viewStart/viewLen 윈도우. 휠 줌(커서 중심), 스크롤바 썸 드래그/트랙 페이징, 줌인 시 라인모드/줌아웃 시 min·max 엔벨로프. 루프포인트 드래그는 뷰 기준 매핑. Widget에 `onWheel` 추가.
 - [ ] **샘플 트림** — SAVE를 루프영역/선택구간만 익스포트하도록 확장.
 
 ### 마감/폴리시

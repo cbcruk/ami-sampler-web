@@ -318,6 +318,17 @@ export class AmiUI {
       this.active?.onUp?.();
       this.active = null;
     });
+    this.o.canvas.addEventListener("wheel", (e) => {
+      const { x, y } = this.toLogical(e);
+      for (let i = this.widgets.length - 1; i >= 0; i--) {
+        const w = this.widgets[i];
+        if (w.onWheel && w.hit(x, y)) {
+          w.onWheel(x, y, e.deltaY);
+          e.preventDefault();
+          break;
+        }
+      }
+    }, { passive: false });
   }
 
   // ---- render ----
