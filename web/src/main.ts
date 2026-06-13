@@ -62,8 +62,15 @@ async function loadFile(file: File): Promise<void> {
   const sample = await decodeAudioFile(file, node.ctx);
   samples[activeChannel] = sample;
   waveform.setSample(sample);
-  setChanParam(ChanParamId.LOOP_END, sample.frames, true);
   node.setSample(activeChannel, sample);
+
+  // apply loop metadata if the format carried it (IFF/8SVX repeat, BRR loop)
+  const hasLoop = sample.loopEnd !== undefined && sample.loopEnd > (sample.loopStart ?? 0);
+  setChanParam(ChanParamId.LOOP_START, hasLoop ? (sample.loopStart ?? 0) : 0, true);
+  setChanParam(ChanParamId.LOOP_END, hasLoop ? sample.loopEnd! : sample.frames, true);
+  setChanParam(ChanParamId.LOOP_EN, hasLoop ? 1 : 0, true);
+  syncLoopView();
+
   $("#sample-name").textContent =
     `ch${activeChannel + 1}: ${file.name} — ${sample.frames} frames, ${sample.channels}ch @ ${sample.sourceRate} Hz`;
 }
@@ -74,7 +81,8 @@ function setChanParam(id: number, value: number, syncControl = false): void {
   if (syncControl) {
     const input = document.querySelector<HTMLInputElement>(`[data-chan-param="${id}"]`);
     if (input) {
-      input.value = String(value);
+      if (input.type === "checkbox") input.checked = value !== 0;
+      else input.value = String(value);
       const label = input.parentElement?.querySelector(".val");
       if (label && input.type !== "checkbox") label.textContent = String(value);
     }

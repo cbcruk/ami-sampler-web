@@ -6,6 +6,8 @@ export interface SampleData {
   channels: number;
   sourceRate: number;
   frames: number;
+  loopStart?: number;
+  loopEnd?: number;
 }
 
 export interface MeterState {

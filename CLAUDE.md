@@ -62,9 +62,10 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 - 글리산도(mono 모드 피치 슬라이드), mono/poly voice-count 셀렉터, Paula width, 비브라토 LFO.
 - 원본 `AmiSamplerVoice.cpp` gliss2pitch / `PluginProcessor.cpp` incVibratoTable 참고.
 
-### 2. IFF / BRR / µ-law 파서
-- `reference/Source/astro_formats/` — JUCE AudioFormat 서브클래스지만 파싱 자체는 plain 바이트 처리. WAV/AIFF는 이미 `decodeAudioData`로 처리됨.
-- 추가 대상: IFF(8SVX, Amiga), BRR(SNES), µ-law. **파싱은 1회성이라 wasm보다 TS 포팅이 단순** — `wav-loader.ts` 옆에 포맷별 파서 추가하고 매직넘버로 디스패치 권장.
+### 2. IFF / BRR / µ-law 파서 — ✅ 완료
+- `web/src/audio/sample-formats/{iff-8svx,brr,mulaw}.ts`, `wav-loader.ts`가 디스패치(8SVX는 매직넘버, BRR/µ-law는 확장자/크기). 원본 `astro_formats/` 1:1 포팅.
+- 8SVX: big-endian FORM/VHDR/BODY, raw signed 8-bit(피보나치 압축은 원본에도 미디코드). BRR: 9바이트 블록·4필터·16.16 고정소수점·루프 플래그(16744Hz). µ-law: 지수 확장 공식(비표준 G.711, 22050Hz). 루프 메타데이터는 `SampleData.loopStart/End`로 전달.
+- 브라우저 검증: caxioohh.iff(5922@16726), amen short.brr(29024@16744, 루프 16–29023), 합성 µ-law(4000@22050) 전부 정상 디코드·재생.
 
 ### 3. Web MIDI
 - `navigator.requestMIDIAccess()` → noteOn/noteOff/pitchbend/CC.
