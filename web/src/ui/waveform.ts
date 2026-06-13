@@ -25,9 +25,10 @@ export class WaveformView {
     this.draw();
   }
 
-  setSample(s: SampleData): void {
+  setSample(s: SampleData | null): void {
     this.sample = s;
-    this.loop = { enabled: false, start: 0, end: s.frames };
+    this.playhead = -1;
+    this.loop = { enabled: false, start: 0, end: s ? s.frames : 0 };
     this.computePeaks();
     this.draw();
   }

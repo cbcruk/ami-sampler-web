@@ -1,7 +1,7 @@
-// Parameter ids — MUST stay in sync with engine/ami-engine.cpp (enum ParamId)
-// and public/ami-processor.js (PARAM mirror).
+// Parameter ids — MUST stay in sync with engine/ami-engine.cpp
+// (enum ChanParamId / GlobalParamId) and public/ami-processor.js mirrors.
 
-export const ParamId = {
+export const ChanParamId = {
   EIGHT_BIT: 0,
   SNH: 1,
   LOOP_EN: 2,
@@ -14,11 +14,24 @@ export const ParamId = {
   RELEASE: 9,
   VOLUME: 10,
   PAN: 11,
-  A500: 12,
-  LED: 13,
-  ROOT_NOTE: 14,
-  FINETUNE: 15,
-  MASTER_VOL: 16,
+  ROOT_NOTE: 12,
+  FINETUNE: 13,
+  MUTE: 14,
+  SOLO: 15,
+  PAULA_STEREO: 16,
+  MIDI_CHAN: 17,
+  LOW_NOTE: 18,
+  HIGH_NOTE: 19,
 } as const;
 
-export type ParamId = (typeof ParamId)[keyof typeof ParamId];
+export type ChanParamId = (typeof ChanParamId)[keyof typeof ChanParamId];
+
+export const GlobalParamId = {
+  A500: 0,
+  LED: 1,
+  MASTER_VOL: 2,
+} as const;
+
+export type GlobalParamId = (typeof GlobalParamId)[keyof typeof GlobalParamId];
+
+export const NUM_CHANNELS = 12;

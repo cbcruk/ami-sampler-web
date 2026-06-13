@@ -11,6 +11,11 @@
 //   - forward / ping-pong looping
 //   - linear ADSR
 //   - Paula RC low/high-pass + 2-pole LED filter on the master bus
+//   - Paula alternating hard L/R pan (incPanCount / shouldPan)
+//
+// 12 independent sampler channels (NUM_CHANNELS), each with its own sample
+// buffer, params and voices. Filters and master volume are GLOBAL — applied
+// once on the summed master bus.
 
 #include <cmath>
 #include <cstring>
@@ -18,32 +23,43 @@
 
 extern "C" {
 
-constexpr int MAX_VOICES = 16;
-constexpr int MAX_SAMPLE_FRAMES = 4 * 1024 * 1024; // ~16M floats per channel
-constexpr int MAX_BLOCK = 1024;
+constexpr int NUM_CHANNELS       = 12;
+constexpr int VOICES_PER_CHANNEL = 8;
+constexpr int MAX_BLOCK          = 1024;
+constexpr int MAX_SAMPLE_FRAMES  = 1024 * 1024; // per-channel, per L/R (~23.8s @ 44.1k)
 
 // ----------------------------------------------------------------------------
-// Parameter ids (kept in sync with audio/param-ids.ts)
+// Parameter ids (kept in sync with audio/param-ids.ts + public/ami-processor.js)
 // ----------------------------------------------------------------------------
-enum ParamId {
-    P_EIGHT_BIT = 0,   // 8-bit quantization on/off
-    P_SNH       = 1,   // sample-and-hold step (>=1)
-    P_LOOP_EN   = 2,
-    P_LOOP_START= 3,
-    P_LOOP_END  = 4,
-    P_PINGPONG  = 5,
-    P_ATTACK    = 6,   // seconds
-    P_DECAY     = 7,
-    P_SUSTAIN   = 8,   // 0..1
-    P_RELEASE   = 9,
-    P_VOLUME    = 10,  // 0..1
-    P_PAN       = 11,  // 0..255 (Amiga style), 128 = center
-    P_A500      = 12,  // model: 1 = A500 (LP+HP), 0 = A1200 (HP only)
-    P_LED       = 13,  // LED filter on/off
-    P_ROOT_NOTE = 14,  // MIDI note that plays at source rate
-    P_FINETUNE  = 15,  // cents
-    P_MASTER_VOL= 16,
-    P__COUNT
+enum ChanParamId {
+    CP_EIGHT_BIT    = 0,   // 8-bit quantization on/off
+    CP_SNH          = 1,   // sample-and-hold step (>=1)
+    CP_LOOP_EN      = 2,
+    CP_LOOP_START   = 3,
+    CP_LOOP_END     = 4,
+    CP_PINGPONG     = 5,
+    CP_ATTACK       = 6,   // seconds
+    CP_DECAY        = 7,
+    CP_SUSTAIN      = 8,   // 0..1
+    CP_RELEASE      = 9,
+    CP_VOLUME       = 10,  // 0..1
+    CP_PAN          = 11,  // 0..255 (Amiga style), 128 = center
+    CP_ROOT_NOTE    = 12,  // MIDI note that plays at source rate
+    CP_FINETUNE     = 13,  // cents
+    CP_MUTE         = 14,  // bool
+    CP_SOLO         = 15,  // bool
+    CP_PAULA_STEREO = 16,  // bool — alternate hard L/R pan per voice
+    CP_MIDI_CHAN    = 17,  // 0 = omni, 1..16
+    CP_LOW_NOTE     = 18,  // 0..127
+    CP_HIGH_NOTE    = 19,  // 0..127
+    CP__COUNT
+};
+
+enum GlobalParamId {
+    GP_A500       = 0,   // model: 1 = A500 (LP+HP), 0 = A1200 (HP only)
+    GP_LED        = 1,   // LED filter on/off
+    GP_MASTER_VOL = 2,
+    GP__COUNT
 };
 
 // ----------------------------------------------------------------------------
@@ -150,7 +166,31 @@ struct Voice {
     double pitchRatio = 1.0;
     float gain = 0.f;
     bool forward = true;
+    float panLGain = 1.f, panRGain = 1.f; // Paula stereo: frozen 0/1 at note-on
     ADSR adsr;
+};
+
+// ----------------------------------------------------------------------------
+// Channel (one of NUM_CHANNELS independent samplers)
+// ----------------------------------------------------------------------------
+struct Channel {
+    float params[CP__COUNT];
+    Voice voices[VOICES_PER_CHANNEL];
+    int    sampleFrames = 0;
+    int    sampleChannels = 1;
+    double sourceRate = 44100.0;
+    int    panCounter = 0; // Paula stereo, cycles 0..7
+
+    void initParams() {
+        std::memset(params, 0, sizeof(params));
+        params[CP_EIGHT_BIT] = 1; params[CP_SNH] = 1; params[CP_SUSTAIN] = 1;
+        params[CP_VOLUME] = 1; params[CP_PAN] = 128;
+        params[CP_ATTACK] = 0.001f; params[CP_DECAY] = 0.1f; params[CP_RELEASE] = 0.05f;
+        params[CP_ROOT_NOTE] = 60;
+        params[CP_MIDI_CHAN] = 0; params[CP_LOW_NOTE] = 0; params[CP_HIGH_NOTE] = 127;
+        for (auto& v : voices) v = Voice();
+        sampleFrames = 0; sampleChannels = 1; sourceRate = 44100.0; panCounter = 0;
+    }
 };
 
 // ----------------------------------------------------------------------------
@@ -158,13 +198,8 @@ struct Voice {
 // ----------------------------------------------------------------------------
 struct Engine {
     double devRate = 44100.0;
-    double sourceRate = 44100.0;
-    int    sampleFrames = 0;
-    int    sampleChannels = 1;
-
-    float params[P__COUNT];
-
-    Voice voices[MAX_VOICES];
+    float  gparams[GP__COUNT];
+    Channel channels[NUM_CHANNELS];
 
     OnePole a500Lo, a500Hi, a1200Hi;
     TwoPole led;
@@ -183,19 +218,16 @@ struct Engine {
 
     void init(double sr) {
         devRate = sr;
-        std::memset(params, 0, sizeof(params));
-        params[P_EIGHT_BIT] = 1; params[P_SNH] = 1; params[P_SUSTAIN] = 1;
-        params[P_VOLUME] = 1; params[P_PAN] = 128; params[P_A500] = 1;
-        params[P_ATTACK] = 0.001f; params[P_DECAY] = 0.1f; params[P_RELEASE] = 0.05f;
-        params[P_ROOT_NOTE] = 60; params[P_MASTER_VOL] = 1;
-        for (auto& v : voices) { v = Voice(); }
+        std::memset(gparams, 0, sizeof(gparams));
+        gparams[GP_A500] = 1; gparams[GP_MASTER_VOL] = 1;
+        for (auto& c : channels) c.initParams();
         initFilters();
     }
 };
 
 static Engine g_engine;
-static float g_sampleL[MAX_SAMPLE_FRAMES];
-static float g_sampleR[MAX_SAMPLE_FRAMES];
+static float g_sampleL[NUM_CHANNELS][MAX_SAMPLE_FRAMES];
+static float g_sampleR[NUM_CHANNELS][MAX_SAMPLE_FRAMES];
 static float g_outL[MAX_BLOCK];
 static float g_outR[MAX_BLOCK];
 
@@ -211,59 +243,103 @@ static inline float ami8(float s) {
 
 void ami_init(float sampleRate) { g_engine.init(sampleRate); }
 
-float* ami_sample_l() { return g_sampleL; }
-float* ami_sample_r() { return g_sampleR; }
+float* ami_sample_l(int ch) { if (ch < 0 || ch >= NUM_CHANNELS) ch = 0; return g_sampleL[ch]; }
+float* ami_sample_r(int ch) { if (ch < 0 || ch >= NUM_CHANNELS) ch = 0; return g_sampleR[ch]; }
 int    ami_sample_capacity() { return MAX_SAMPLE_FRAMES; }
 float* ami_out_l() { return g_outL; }
 float* ami_out_r() { return g_outR; }
 
-// Called after JS writes interleaved-free L/R into g_sampleL/g_sampleR.
-void ami_set_sample(int numFrames, int channels, float sourceRate) {
-    g_engine.sampleFrames = numFrames > MAX_SAMPLE_FRAMES ? MAX_SAMPLE_FRAMES : numFrames;
-    g_engine.sampleChannels = channels >= 2 ? 2 : 1;
-    g_engine.sourceRate = sourceRate;
+// Called after JS writes interleaved-free L/R into g_sampleL[ch]/g_sampleR[ch].
+void ami_set_sample(int ch, int numFrames, int channels, float sourceRate) {
+    if (ch < 0 || ch >= NUM_CHANNELS) return;
+    Channel& c = g_engine.channels[ch];
+    c.sampleFrames = numFrames > MAX_SAMPLE_FRAMES ? MAX_SAMPLE_FRAMES : numFrames;
+    c.sampleChannels = channels >= 2 ? 2 : 1;
+    c.sourceRate = sourceRate;
 }
 
-void ami_set_param(int id, float value) {
-    if (id < 0 || id >= P__COUNT) return;
-    g_engine.params[id] = value;
-    if (id == P_A500) g_engine.initFilters();
+void ami_set_chan_param(int channel, int id, float value) {
+    if (channel < 0 || channel >= NUM_CHANNELS) return;
+    if (id < 0 || id >= CP__COUNT) return;
+    g_engine.channels[channel].params[id] = value;
 }
 
-void ami_note_on(int midiNote, float velocity) {
+void ami_set_global_param(int id, float value) {
+    if (id < 0 || id >= GP__COUNT) return;
+    g_engine.gparams[id] = value;
+    if (id == GP_A500) g_engine.initFilters();
+}
+
+void ami_note_on(int midiNote, int midiChannel, float velocity) {
     Engine& e = g_engine;
-    // find a free voice, else steal the oldest-quietest
-    int idx = -1;
-    for (int i = 0; i < MAX_VOICES; i++) if (!e.voices[i].active) { idx = i; break; }
-    if (idx < 0) {
-        float lowest = 1e9f;
-        for (int i = 0; i < MAX_VOICES; i++)
-            if (e.voices[i].adsr.level < lowest) { lowest = e.voices[i].adsr.level; idx = i; }
+
+    // global solo state (computed once)
+    bool anySolo = false;
+    for (auto& c : e.channels) if (c.params[CP_SOLO] != 0.f) { anySolo = true; break; }
+
+    for (auto& c : e.channels) {
+        // note range
+        int lo = (int)c.params[CP_LOW_NOTE];
+        int hi = (int)c.params[CP_HIGH_NOTE];
+        if (midiNote < lo || midiNote > hi) continue;
+        // midi channel (0 = omni)
+        int mc = (int)c.params[CP_MIDI_CHAN];
+        if (mc != 0 && mc != midiChannel) continue;
+        // mute / solo gating
+        if (c.params[CP_MUTE] != 0.f) continue;
+        if (anySolo && c.params[CP_SOLO] == 0.f) continue;
+        // nothing loaded
+        if (c.sampleFrames <= 0) continue;
+
+        // find a free voice, else steal the lowest-envelope
+        int idx = -1;
+        for (int i = 0; i < VOICES_PER_CHANNEL; i++) if (!c.voices[i].active) { idx = i; break; }
+        if (idx < 0) {
+            float lowest = 1e9f;
+            for (int i = 0; i < VOICES_PER_CHANNEL; i++)
+                if (c.voices[i].adsr.level < lowest) { lowest = c.voices[i].adsr.level; idx = i; }
+        }
+        Voice& v = c.voices[idx];
+        int root = (int)c.params[CP_ROOT_NOTE];
+        double finetune = 1.0 + c.params[CP_FINETUNE] / 1200.0;
+        v.note = midiNote;
+        v.pitchRatio = std::pow(2.0, (double)(midiNote - root) / 12.0) * (c.sourceRate / e.devRate) * finetune;
+        v.pos = 0.0;
+        v.gain = velocity;
+        v.forward = true;
+        v.adsr.sampleRate = (float)e.devRate;
+        v.adsr.attack = c.params[CP_ATTACK];
+        v.adsr.decay = c.params[CP_DECAY];
+        v.adsr.sustain = c.params[CP_SUSTAIN];
+        v.adsr.release = c.params[CP_RELEASE];
+        v.adsr.noteOn();
+        v.active = true;
+
+        // Paula stereo: alternate hard L/R per voice (incPanCount / shouldPan)
+        if (c.params[CP_PAULA_STEREO] != 0.f) {
+            int side = c.panCounter % 2;
+            v.panLGain = side == 0 ? 1.f : 0.f;
+            v.panRGain = side == 1 ? 1.f : 0.f;
+            c.panCounter = c.panCounter >= 7 ? 0 : c.panCounter + 1;
+        } else {
+            v.panLGain = 1.f; v.panRGain = 1.f;
+        }
     }
-    Voice& v = e.voices[idx];
-    int root = (int)e.params[P_ROOT_NOTE];
-    double finetune = 1.0 + e.params[P_FINETUNE] / 1200.0;
-    v.note = midiNote;
-    v.pitchRatio = std::pow(2.0, (double)(midiNote - root) / 12.0) * (e.sourceRate / e.devRate) * finetune;
-    v.pos = 0.0;
-    v.gain = velocity;
-    v.forward = true;
-    v.adsr.sampleRate = (float)e.devRate;
-    v.adsr.attack = e.params[P_ATTACK];
-    v.adsr.decay = e.params[P_DECAY];
-    v.adsr.sustain = e.params[P_SUSTAIN];
-    v.adsr.release = e.params[P_RELEASE];
-    v.adsr.noteOn();
-    v.active = true;
 }
 
-void ami_note_off(int midiNote) {
-    for (auto& v : g_engine.voices)
-        if (v.active && v.note == midiNote) v.adsr.noteOff();
+void ami_note_off(int midiNote, int midiChannel) {
+    Engine& e = g_engine;
+    for (auto& c : e.channels) {
+        int mc = (int)c.params[CP_MIDI_CHAN];
+        if (mc != 0 && mc != midiChannel) continue;
+        for (auto& v : c.voices)
+            if (v.active && v.note == midiNote) v.adsr.noteOff();
+    }
 }
 
 void ami_all_notes_off() {
-    for (auto& v : g_engine.voices) { v.adsr.reset(); v.active = false; }
+    for (auto& c : g_engine.channels)
+        for (auto& v : c.voices) { v.adsr.reset(); v.active = false; }
 }
 
 void ami_process(int numFrames) {
@@ -273,43 +349,52 @@ void ami_process(int numFrames) {
     std::memset(g_outL, 0, sizeof(float) * numFrames);
     std::memset(g_outR, 0, sizeof(float) * numFrames);
 
-    const bool eightBit = e.params[P_EIGHT_BIT] != 0.f;
-    int snh = (int)e.params[P_SNH]; if (snh < 1) snh = 1;
-    const bool loopEn = e.params[P_LOOP_EN] != 0.f;
-    const bool pingpong = e.params[P_PINGPONG] != 0.f && loopEn;
-    const int loopStart = (int)e.params[P_LOOP_START];
-    int loopEnd = (int)e.params[P_LOOP_END];
-    if (loopEnd <= 0 || loopEnd > e.sampleFrames) loopEnd = e.sampleFrames;
-    const float vol = e.params[P_VOLUME];
-    const float pan = e.params[P_PAN];
-    const bool stereoSrc = e.sampleChannels > 1;
+    for (int ch = 0; ch < NUM_CHANNELS; ch++) {
+        Channel& c = e.channels[ch];
+        if (c.sampleFrames <= 0) continue;
 
-    // channel pan (non-Paula): mirrors handleChannelPanning else-branch
-    const float panL = pan <= 128 ? 1.f : std::abs(pan - 255.f) / 127.f;
-    const float panR = pan >= 128 ? 1.f : pan / 127.f;
+        const bool eightBit = c.params[CP_EIGHT_BIT] != 0.f;
+        int snh = (int)c.params[CP_SNH]; if (snh < 1) snh = 1;
+        const bool loopEn = c.params[CP_LOOP_EN] != 0.f;
+        const bool pingpong = c.params[CP_PINGPONG] != 0.f && loopEn;
+        const int loopStart = (int)c.params[CP_LOOP_START];
+        int loopEnd = (int)c.params[CP_LOOP_END];
+        if (loopEnd <= 0 || loopEnd > c.sampleFrames) loopEnd = c.sampleFrames;
+        const float vol = c.params[CP_VOLUME];
+        const float pan = c.params[CP_PAN];
+        const bool stereoSrc = c.sampleChannels > 1;
+        const bool paula = c.params[CP_PAULA_STEREO] != 0.f;
 
-    if (e.sampleFrames <= 0) {
-        // still apply master filter to silence to keep state coherent
-    } else {
-        for (auto& v : e.voices) {
+        // channel pan (non-Paula): mirrors handleChannelPanning else-branch
+        const float panL = pan <= 128 ? 1.f : std::abs(pan - 255.f) / 127.f;
+        const float panR = pan >= 128 ? 1.f : pan / 127.f;
+
+        const float* sampL = g_sampleL[ch];
+        const float* sampR = g_sampleR[ch];
+
+        for (auto& v : c.voices) {
             if (!v.active) continue;
+
+            const float lMul = paula ? v.panLGain : panL;
+            const float rMul = paula ? v.panRGain : panR;
+
             for (int n = 0; n < numFrames; n++) {
                 int pos = (int)std::floor(v.pos);
                 if (pos < 0) pos = 0;
-                if (pos >= e.sampleFrames) { v.adsr.reset(); v.active = false; break; }
+                if (pos >= c.sampleFrames) { v.adsr.reset(); v.active = false; break; }
 
                 int sp = pos - (pos % snh);
-                if (sp >= e.sampleFrames) sp = e.sampleFrames - 1;
+                if (sp >= c.sampleFrames) sp = c.sampleFrames - 1;
 
-                float sl = g_sampleL[sp];
-                float sr = stereoSrc ? g_sampleR[sp] : sl;
+                float sl = sampL[sp];
+                float sr = stereoSrc ? sampR[sp] : sl;
                 if (eightBit) { sl = ami8(sl); sr = ami8(sr); }
                 // original negates; preserve phase behaviour
                 sl = -sl; sr = -sr;
 
                 float env = v.adsr.next();
-                float l = sl * v.gain * vol * env * panL;
-                float r = sr * v.gain * vol * env * panR;
+                float l = sl * v.gain * vol * env * lMul;
+                float r = sr * v.gain * vol * env * rMul;
 
                 g_outL[n] += l;
                 g_outR[n] += r;
@@ -331,15 +416,15 @@ void ami_process(int numFrames) {
                     }
                 }
 
-                if (!v.adsr.isActive() || v.pos > e.sampleFrames) { v.active = false; break; }
+                if (!v.adsr.isActive() || v.pos > c.sampleFrames) { v.active = false; break; }
             }
         }
     }
 
     // master: Amiga RC/LED filter + master volume (getAmiFilter)
-    const bool isA500 = e.params[P_A500] != 0.f;
-    const bool ledOn = e.params[P_LED] != 0.f;
-    const float mvol = e.params[P_MASTER_VOL];
+    const bool isA500 = e.gparams[GP_A500] != 0.f;
+    const bool ledOn = e.gparams[GP_LED] != 0.f;
+    const float mvol = e.gparams[GP_MASTER_VOL];
     for (int n = 0; n < numFrames; n++) {
         float l = g_outL[n], r = g_outR[n];
         float fl, fr;
@@ -356,12 +441,16 @@ void ami_process(int numFrames) {
 }
 
 int ami_active_voices() {
-    int c = 0; for (auto& v : g_engine.voices) if (v.active) c++; return c;
+    int c = 0;
+    for (auto& ch : g_engine.channels)
+        for (auto& v : ch.voices) if (v.active) c++;
+    return c;
 }
 
-// playhead of the most recently active voice (for waveform UI)
-int ami_playhead() {
-    for (auto& v : g_engine.voices) if (v.active) return (int)v.pos;
+// playhead of the first active voice in a channel (for waveform UI)
+int ami_playhead(int ch) {
+    if (ch < 0 || ch >= NUM_CHANNELS) return -1;
+    for (auto& v : g_engine.channels[ch].voices) if (v.active) return (int)v.pos;
     return -1;
 }
 

@@ -52,15 +52,15 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 
 ## 현재 상태
 
-**마일스톤 1 PoC 완료·브라우저 검증됨.** 단일 샘플 → 8bit/S&H/ADSR/루프/RC+LED → 키보드 폴리포닉 재생 (maxPeak 0.94 확인).
+**마일스톤 1(12 샘플러 채널) 코어 완료·브라우저 검증됨.** 12채널 독립 샘플/파라미터/보이스, MIDI 채널·노트범위 라우팅, mute/solo 게이팅, Paula 스테레오 교대 하드팬(첫 노트 L, 원본 `shouldPan`과 일치), per-channel vol/pan/ADSR/loop/8bit/S&H/finetune/root. UI는 1–12 채널 셀렉터로 단일 패널 재타게팅 + 전역 패널(A500/LED/Master). 엔진은 `(channel,id)` 페어 메시지 스킴(`ami_set_chan_param`/`ami_set_global_param`), per-channel 고정 샘플버퍼(1M frames), `INITIAL_MEMORY=128MB`.
+
+**남은 채널 기능(M3 Web MIDI와 함께):** 글리산도, mono/poly 보이스 수(1/4/8), Paula width, 비브라토 LFO(CC#1).
 
 ## 다음 마일스톤
 
-### 1. 12 샘플러 채널
-- 원본 `NUM_SAMPLERS=12`. 각 채널이 독립 샘플 슬롯 + 파라미터(mute/solo, Paula 스테레오 페어, per-channel vol/pan/ADSR/loop/finetune/gliss, MIDI 채널·root·low/high note 범위, mono/poly voice 수).
-- 현재 엔진은 단일 샘플 전역. `Engine`을 채널 배열로 확장하고 노트 라우팅을 MIDI 채널/노트범위(`appliesToNote`/`appliesToChannel`)로 분기.
-- **Paula 스테레오**: `incPanCount`/`shouldPan` — 보이스가 번갈아 L/R로 하드팬되는 카운터 로직. 원본 `PluginProcessor.h` 게터들 참고.
-- param-id 스킴을 채널 인덱스 포함하도록 재설계 필요 (예: `paramId = base + channel*stride` 또는 (id, channel) 페어 메시지).
+### 1b. 12채널 잔여 기능 (M3과 함께)
+- 글리산도(mono 모드 피치 슬라이드), mono/poly voice-count 셀렉터, Paula width, 비브라토 LFO.
+- 원본 `AmiSamplerVoice.cpp` gliss2pitch / `PluginProcessor.cpp` incVibratoTable 참고.
 
 ### 2. IFF / BRR / µ-law 파서
 - `reference/Source/astro_formats/` — JUCE AudioFormat 서브클래스지만 파싱 자체는 plain 바이트 처리. WAV/AIFF는 이미 `decodeAudioData`로 처리됨.

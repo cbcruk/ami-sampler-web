@@ -1,4 +1,4 @@
-import { ParamId } from "./param-ids";
+import { ChanParamId, GlobalParamId } from "./param-ids";
 
 export interface SampleData {
   left: Float32Array;
@@ -55,25 +55,34 @@ export class AmiNode {
     this.onMeter = cb;
   }
 
-  setSample(s: SampleData): void {
+  // The worklet reports playhead for whichever channel the UI is viewing.
+  setMeterChannel(channel: number): void {
+    this.node!.port.postMessage({ type: "meterChannel", channel });
+  }
+
+  setSample(channel: number, s: SampleData): void {
     const left = s.left;
     const right = s.right ?? new Float32Array(0);
     this.node!.port.postMessage(
-      { type: "setSample", left, right, channels: s.channels, sourceRate: s.sourceRate },
+      { type: "setSample", channel, left, right, channels: s.channels, sourceRate: s.sourceRate },
       [left.buffer, ...(s.right ? [right.buffer] : [])],
     );
   }
 
-  setParam(id: ParamId, value: number): void {
-    this.node!.port.postMessage({ type: "setParam", id, value });
+  setChanParam(channel: number, id: ChanParamId, value: number): void {
+    this.node!.port.postMessage({ type: "setChanParam", channel, id, value });
   }
 
-  noteOn(note: number, velocity = 1): void {
-    this.node!.port.postMessage({ type: "noteOn", note, velocity });
+  setGlobalParam(id: GlobalParamId, value: number): void {
+    this.node!.port.postMessage({ type: "setGlobalParam", id, value });
   }
 
-  noteOff(note: number): void {
-    this.node!.port.postMessage({ type: "noteOff", note });
+  noteOn(note: number, midiChannel = 1, velocity = 1): void {
+    this.node!.port.postMessage({ type: "noteOn", note, midiChannel, velocity });
+  }
+
+  noteOff(note: number, midiChannel = 1): void {
+    this.node!.port.postMessage({ type: "noteOff", note, midiChannel });
   }
 
   allNotesOff(): void {
