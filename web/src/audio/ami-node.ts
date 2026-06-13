@@ -63,12 +63,17 @@ export class AmiNode {
   }
 
   setSample(channel: number, s: SampleData): void {
-    const left = s.left;
     const right = s.right ?? new Float32Array(0);
-    this.node!.port.postMessage(
-      { type: "setSample", channel, left, right, channels: s.channels, sourceRate: s.sourceRate },
-      [left.buffer, ...(s.right ? [right.buffer] : [])],
-    );
+    // structured-clone (no transfer): keeps the main-thread buffers valid for the
+    // waveform display and per-channel re-use. Loads are infrequent so the copy is cheap.
+    this.node!.port.postMessage({
+      type: "setSample",
+      channel,
+      left: s.left,
+      right,
+      channels: s.channels,
+      sourceRate: s.sourceRate,
+    });
   }
 
   setChanParam(channel: number, id: ChanParamId, value: number): void {

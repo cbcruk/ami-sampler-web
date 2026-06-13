@@ -72,10 +72,12 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 - 엔진: 채널별 `bend[17]`(`ami_pitch_bend`), 전역 비브라토 LFO(`incVibratoTable`, vibratoTable 32값), `GP_VIBE_SPEED`/`GP_MOD_INTENSITY`. `step = pitchRatio*bend*vibe`로 피치 전진(원본 `totalPitchRatio`).
 - 검증: 파서 단위검증(채널/vel0/14비트/CC#1) 통과. FFT로 피치벤드 비율(up 1.122/down 0.890 — `2^((v-8192)/49152)` 일치), 비브라토 intensity 게이팅(0=안정, 127=흔들림) 확인. **헤드리스 Chrome은 실제 MIDI 권한 미부여라 기기 입력은 실기 필요.**
 
-### 4. 픽셀아트 UI
-- `Res/`: `amiwin*.png`(창 배경), `amidos.ttf`/`ami_font`(픽셀 폰트), `pixelkey_black.png`(키보드), 마우스커서/트래시.
-- 레퍼런스: `reference/Source/PixelBuffer.cpp`, `GuiComponent.cpp`, `AmiWindowEditor.cpp`, `AmiLookAndFeel.cpp`.
-- Canvas에 `image-rendering: pixelated`, 정수 스케일. 노브·가상 키보드·파형 에디터(루프 포인트 드래그) 재현.
+### 4. 픽셀아트 UI — ✅ 완료
+- `web/src/ui/ami/`: `palette.ts`(ami_palette 색상), `draw.ts`(베벨/체커슬라이더/버튼 프리미티브), `assets.ts`(amidos.ttf @font-face + PNG), `widgets.ts`(Slider/Button/Checkbox/Stepper), `waveform-canvas.ts`(파란 배경/흰 파형/주황 센터라인/F·E/루프드래그), `sample-list.ts`(01–12 채널 셀렉터), `piano-canvas.ts`(흰건반+pixelkey_black 스프라이트+16진 라벨+범위 오버레이), `ami-ui.ts`(1080×640 단일 캔버스 즉시모드 컨트롤러·포인터 라우팅·채널 미러·AmiNode 배선).
+- 에셋은 `Res/`→`web/public/res/` 복사. `index.html`은 캔버스 마운트 + 정수 스케일(`image-rendering:pixelated`).
+- **충실한 재현**: 원본 레이아웃·팔레트·위젯 시각적 동일. 검증: 스크린샷 대조, 채널전환·슬라이더·LOOP토글·피아노클릭·루프드래그 동작, 파형 렌더(무음구간 정확).
+- **UI-only(엔진 미배선)**: Glide(글리산도), Mono/PT Poly/Octa Poly(보이스수), Master Panning. 잔여 채널 기능 배선 시 활성화.
+- **주의**: `ami-node.setSample`는 transfer 미사용(구조화복제) — transfer 시 메인스레드 버퍼 detach로 파형이 빈 데이터를 읽음.
 
 ## 라이선스
 GPL v3. `LICENSE` + `CREDITS.md`(원작자 astriiddev, 필터 출처 8bitbubsy pt2-clone) 유지.

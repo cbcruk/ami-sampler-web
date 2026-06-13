@@ -3,99 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ami Sampler — Web (PoC)</title>
+    <title>Ami Sampler — Web</title>
     <style>
-      :root { --bg:#0b0b3b; --fg:#ffffff; --accent:#ff8800; --panel:#1a1a5a; }
       * { box-sizing: border-box; }
-      body {
-        margin: 0; font-family: monospace; background: #05051f; color: var(--fg);
-        padding: 16px; -webkit-font-smoothing: none;
+      html, body {
+        margin: 0; height: 100%; background: #05051f; color: #fff;
+        font-family: monospace; -webkit-font-smoothing: none;
+        display: flex; align-items: center; justify-content: center; overflow: hidden;
       }
-      h1 { font-size: 18px; color: var(--accent); margin: 0 0 4px; }
-      h2.section { font-size: 13px; color: var(--accent); margin: 14px 0 6px; text-transform: uppercase; }
-      #status, #sample-name, #midi-status { font-size: 12px; color: #9a9aff; margin-bottom: 8px; }
-      #waveform-wrap {
-        border: 2px solid var(--panel); border-radius: 4px; height: 180px; position: relative; margin-bottom: 12px;
+      #wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+      #ami {
+        image-rendering: pixelated; image-rendering: crisp-edges;
+        border: 2px solid #1a1a5a; cursor: default;
       }
-      #waveform-wrap.drag { border-color: var(--accent); }
-      #waveform { width: 100%; height: 100%; display: block; }
-      .panel {
-        display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        gap: 10px; background: var(--panel); padding: 12px; border-radius: 4px;
-      }
-      .ctrl { display: flex; flex-direction: column; font-size: 12px; gap: 2px; }
-      .ctrl label { color: #c8c8ff; display: flex; justify-content: space-between; }
-      .ctrl .val { color: var(--accent); }
-      input[type="range"] { width: 100%; accent-color: var(--accent); }
-      .row { display: flex; gap: 16px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
-      .hint { font-size: 12px; color: #7a7ad0; margin-top: 10px; }
-      kbd { background:#000; border:1px solid #555; border-radius:3px; padding:1px 4px; }
-      button, input[type="file"] { font-family: monospace; }
+      #ami.drag { border-color: #fc8a00; }
+      #status { font-size: 11px; color: #6a6ad0; }
+      #file-input { display: none; }
     </style>
   </head>
   <body>
-    <h1>AMI SAMPLER — WEB PoC</h1>
-    <div id="status">click anywhere to start audio…</div>
-    <div id="sample-name">no sample loaded</div>
-    <div id="midi-status">MIDI: initializing…</div>
-
-    <div id="waveform-wrap">
-      <canvas id="waveform"></canvas>
+    <div id="wrap">
+      <canvas id="ami"></canvas>
+      <div id="status">click to start audio…</div>
     </div>
-
-    <div class="row">
-      <input type="file" id="file-input" accept="audio/*,.wav,.aif,.aiff,.iff,.8svx,.brr,.ul,.ulaw,.mulaw" />
-      <span>channel
-        <select id="channel">
-          <option selected>1</option><option>2</option><option>3</option><option>4</option>
-          <option>5</option><option>6</option><option>7</option><option>8</option>
-          <option>9</option><option>10</option><option>11</option><option>12</option>
-        </select>
-      </span>
-      <span>octave
-        <select id="octave">
-          <option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option>
-        </select>
-      </span>
-    </div>
-
-    <h2 class="section">Channel <span id="chan-label">1</span></h2>
-    <div class="panel">
-      <div class="ctrl"><label>8-bit</label><input type="checkbox" data-chan-param="0" checked /></div>
-      <div class="ctrl"><label>S&amp;H step <span class="val">1</span></label><input type="range" min="1" max="32" step="1" value="1" data-chan-param="1" /></div>
-      <div class="ctrl"><label>Loop</label><input type="checkbox" id="p-loop-en" data-chan-param="2" /></div>
-      <div class="ctrl"><label>Loop start <span class="val">0</span></label><input type="range" id="p-loop-start" min="0" max="1000000" step="1" value="0" data-chan-param="3" /></div>
-      <div class="ctrl"><label>Loop end <span class="val">0</span></label><input type="range" id="p-loop-end" min="0" max="1000000" step="1" value="0" data-chan-param="4" /></div>
-      <div class="ctrl"><label>Ping-pong</label><input type="checkbox" data-chan-param="5" /></div>
-      <div class="ctrl"><label>Attack <span class="val">0.001</span></label><input type="range" min="0" max="2" step="0.001" value="0.001" data-chan-param="6" /></div>
-      <div class="ctrl"><label>Decay <span class="val">0.1</span></label><input type="range" min="0" max="2" step="0.001" value="0.1" data-chan-param="7" /></div>
-      <div class="ctrl"><label>Sustain <span class="val">1</span></label><input type="range" min="0" max="1" step="0.01" value="1" data-chan-param="8" /></div>
-      <div class="ctrl"><label>Release <span class="val">0.05</span></label><input type="range" min="0" max="3" step="0.001" value="0.05" data-chan-param="9" /></div>
-      <div class="ctrl"><label>Volume <span class="val">1</span></label><input type="range" min="0" max="1" step="0.01" value="1" data-chan-param="10" /></div>
-      <div class="ctrl"><label>Pan <span class="val">128</span></label><input type="range" min="0" max="255" step="1" value="128" data-chan-param="11" /></div>
-      <div class="ctrl"><label>Root note <span class="val">60</span></label><input type="range" min="24" max="96" step="1" value="60" data-chan-param="12" /></div>
-      <div class="ctrl"><label>Finetune <span class="val">0</span></label><input type="range" min="-100" max="100" step="1" value="0" data-chan-param="13" /></div>
-      <div class="ctrl"><label>Mute</label><input type="checkbox" data-chan-param="14" /></div>
-      <div class="ctrl"><label>Solo</label><input type="checkbox" data-chan-param="15" /></div>
-      <div class="ctrl"><label>Paula stereo</label><input type="checkbox" data-chan-param="16" /></div>
-      <div class="ctrl"><label>MIDI chan (0=omni) <span class="val">0</span></label><input type="range" min="0" max="16" step="1" value="0" data-chan-param="17" /></div>
-      <div class="ctrl"><label>Low note <span class="val">0</span></label><input type="range" min="0" max="127" step="1" value="0" data-chan-param="18" /></div>
-      <div class="ctrl"><label>High note <span class="val">127</span></label><input type="range" min="0" max="127" step="1" value="127" data-chan-param="19" /></div>
-    </div>
-
-    <h2 class="section">Global</h2>
-    <div class="panel">
-      <div class="ctrl"><label>A500 filter</label><input type="checkbox" data-global-param="0" checked /></div>
-      <div class="ctrl"><label>LED filter</label><input type="checkbox" data-global-param="1" /></div>
-      <div class="ctrl"><label>Master <span class="val">1</span></label><input type="range" min="0" max="1" step="0.01" value="1" data-global-param="2" /></div>
-      <div class="ctrl"><label>Vibe speed <span class="val">5</span></label><input type="range" min="1" max="10" step="1" value="5" data-global-param="3" /></div>
-      <div class="ctrl"><label>Mod intensity <span class="val">0</span></label><input type="range" id="p-mod-intensity" min="0" max="127" step="1" value="0" data-global-param="4" /></div>
-    </div>
-
-    <div class="hint">
-      Play with <kbd>Z</kbd><kbd>S</kbd><kbd>X</kbd><kbd>D</kbd><kbd>C</kbd>… (lower row) and <kbd>Q</kbd><kbd>2</kbd><kbd>W</kbd>… (upper octave). Drop a WAV onto the waveform.
-    </div>
-
+    <input type="file" id="file-input" accept="audio/*,.wav,.aif,.aiff,.iff,.8svx,.brr,.ul,.ulaw,.mulaw" />
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
