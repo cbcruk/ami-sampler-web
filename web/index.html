@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Ami Sampler — Web</title>
     <style>
       * { box-sizing: border-box; }
@@ -14,7 +15,8 @@
       #wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
       #ami {
         image-rendering: pixelated; image-rendering: crisp-edges;
-        border: 2px solid #1a1a5a; cursor: default;
+        border: 2px solid #1a1a5a;
+        cursor: url(/res/amiMouseCursor.png) 0 0, default;
       }
       #ami.drag { border-color: #fc8a00; }
       #status { font-size: 11px; color: #6a6ad0; }

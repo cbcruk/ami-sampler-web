@@ -87,6 +87,35 @@ export class Button implements Widget {
   }
 }
 
+interface ImageButtonOpts {
+  rect: Rect;
+  up: HTMLImageElement;
+  down: HTMLImageElement;
+  onClick: () => void;
+}
+
+export class ImageButton implements Widget {
+  rect: Rect;
+  private pressed = false;
+  constructor(private o: ImageButtonOpts) {
+    this.rect = o.rect;
+  }
+  draw(ctx: CanvasRenderingContext2D): void {
+    const r = this.rect;
+    ctx.drawImage(this.pressed ? this.o.down : this.o.up, r.x, r.y, r.w, r.h);
+  }
+  hit(x: number, y: number): boolean {
+    return inRect(this.rect, x, y);
+  }
+  onDown(): void {
+    this.pressed = true;
+    this.o.onClick();
+  }
+  onUp(): void {
+    this.pressed = false;
+  }
+}
+
 interface CheckOpts {
   rect: Rect; // hit area including label
   boxSize: number;

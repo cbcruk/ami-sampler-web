@@ -89,9 +89,10 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 - [x] **샘플 트림** — MORE 패널의 "TRIM TO LOOP" 버튼이 활성 채널 샘플을 루프영역으로 크롭(엔진 재주입·루프 0~len 리셋·파형 갱신). 이후 SAVE로 트림본 익스포트.
 
 ### 마감/폴리시
-- [ ] favicon 404 정리(무해).
-- [ ] 미사용 에셋 활용 검토: `amiwin*.png`(창 스케일 가젯), `AmiLogo.png`, `amiMouseCursor.png`(커스텀 커서).
-- [ ] 샘플 로드 시 파형 줌 리셋/표시 다듬기, 트래시 아이콘 hover(`amiTrashOn.png`).
+- [x] favicon — `public/favicon.svg`(Amiga 풍 픽셀 아이콘) + `<link rel="icon">`로 404 제거.
+- [x] 트래시 — `ImageButton`(amiTrashOff/On, press 피드백)으로 활성 채널 클리어. 중복 텍스트 버튼 제거.
+- [x] 커스텀 커서 — 캔버스에 `amiMouseCursor.png` CSS 커서 적용.
+- [ ] 미사용 에셋: `amiwin*.png`(창 스케일 가젯 — 웹 고정 레이아웃엔 불필요), `AmiLogo.png`(타이틀은 텍스트로 대체) — 의도적 미사용.
 
 ### 검증/이식 잔여
 - [ ] **실제 MIDI 하드웨어 검증** — 헤드리스 Chrome은 권한 미부여라 noteOn/pitchbend/CC 실기 테스트 필요.

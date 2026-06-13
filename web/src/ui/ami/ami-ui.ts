@@ -4,7 +4,7 @@ import { ChanParamId, GlobalParamId, NUM_CHANNELS } from "../../audio/param-ids"
 import type { AmiAssets } from "./assets";
 import { AMI_BLU, AMI_BLL, AMI_BLD, AMI_WHT, AMI_RED, AMI_GRN } from "./palette";
 import { type Rect, bevel, text, inRect } from "./draw";
-import { type Widget, Slider, Button, Checkbox, Stepper } from "./widgets";
+import { type Widget, Slider, Button, Checkbox, Stepper, ImageButton } from "./widgets";
 import { WaveformCanvas } from "./waveform-canvas";
 import { SampleList } from "./sample-list";
 import { PianoCanvas } from "./piano-canvas";
@@ -288,7 +288,12 @@ export class AmiUI {
     W_.push(new Button({ rect: rel(0.89, 0.737, 0.1, 0.051), label: "LOAD", onClick: () => this.o.onLoadClick() }));
     W_.push(new Button({ rect: rel(0.89, 0.785, 0.1, 0.051), label: "SAVE", onClick: () => this.saveActive() }));
     W_.push(new Button({ rect: rel(0.72, 0.785, 0.15, 0.051), label: "MORE", onClick: () => { this.moreOpen = true; } }));
-    W_.push(new Button({ rect: rel(0.875, 0.86, 0.1, 0.05), label: "TRASH", onClick: () => this.clearActiveChannel() }));
+    W_.push(new ImageButton({
+      rect: rel(0.9, 0.85, 0.05, 0.095),
+      up: this.o.assets.trashOff,
+      down: this.o.assets.trashOn,
+      onClick: () => this.clearActiveChannel(),
+    }));
 
     W_.push(this.waveform, this.sampleList, this.piano);
 
@@ -413,10 +418,6 @@ export class AmiUI {
     text(ctx, `LOOP START:${hex(ls)}`, 12, rel(0, 0.735, 0, 0).y, 14, AMI_WHT, "left");
     text(ctx, `LOOP END  :${hex(le)}`, 12, rel(0, 0.765, 0, 0).y, 14, AMI_WHT, "left");
     text(ctx, `LOOP LEN  :${hex(Math.max(0, le - ls))}`, 12, rel(0, 0.795, 0, 0).y, 14, AMI_WHT, "left");
-
-    // trash icon
-    const trash: Rect = rel(0.94, 0.855, 0.045, 0.085);
-    ctx.drawImage(this.o.assets.trashOff, trash.x, trash.y, trash.w, trash.h);
 
     for (const w of this.widgets) w.draw(ctx);
 
