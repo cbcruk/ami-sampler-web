@@ -25,9 +25,9 @@ export const ChanParamId = {
   GLIDE: 20,
   WIDTH: 21,
   VOICE_MODE: 22,
-} as const;
+} as const
 
-export type ChanParamId = (typeof ChanParamId)[keyof typeof ChanParamId];
+export type ChanParamId = (typeof ChanParamId)[keyof typeof ChanParamId]
 
 export const GlobalParamId = {
   A500: 0,
@@ -36,8 +36,8 @@ export const GlobalParamId = {
   VIBE_SPEED: 3,
   MOD_INTENSITY: 4,
   MASTER_PAN: 5,
-} as const;
+} as const
 
-export type GlobalParamId = (typeof GlobalParamId)[keyof typeof GlobalParamId];
+export type GlobalParamId = (typeof GlobalParamId)[keyof typeof GlobalParamId]
 
-export const NUM_CHANNELS = 12;
+export const NUM_CHANNELS = 12
