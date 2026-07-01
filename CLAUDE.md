@@ -101,6 +101,10 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 - [x] 커스텀 커서 — 캔버스에 `amiMouseCursor.png` CSS 커서 적용.
 - [ ] 미사용 에셋: `amiwin*.png`(창 스케일 가젯 — 웹 고정 레이아웃엔 불필요), `AmiLogo.png`(타이틀은 텍스트로 대체) — 의도적 미사용.
 
+### 모바일/터치
+- [x] **화면 맞춤 + 터치 입력** — `fitCanvas`가 좁은 화면에선 소수 배율로 축소(데스크탑은 정수 배율 유지), 입력을 Pointer Events로 통일(`ami-ui.ts`), 캔버스 `touch-action:none`, 뷰포트 `maximum-scale=1`. 샘플 리스트 터치 드래그 스크롤(탭=선택), 파형 두 손가락 핀치줌(`waveform-canvas.zoomAt`, ami-ui가 포인터 2개 추적).
+- [ ] **멀티터치 코드 연주** — 현재 피아노는 단일 `active` 위젯만 추적해 한 번에 한 음. 여러 손가락 동시 노트온을 위해 포인터별(`pointerId`) 노트 라우팅 필요(ami-ui 포인터 라우터를 위젯당 다중 포인터로 확장, 피아노 키↔pointerId 매핑으로 noteOn/off). 데스크탑 마우스(단일 포인터) 경로는 회귀 없이 유지.
+
 ### 검증/이식 잔여
 - [ ] **실제 MIDI 하드웨어 검증** — 헤드리스 Chrome은 권한 미부여라 noteOn/pitchbend/CC 실기 테스트 필요.
 - [ ] DSP 정밀 회귀: 원본 VST와 동일 샘플·파라미터로 출력 파형 대조(현재는 합성 톤·RMS/FFT 위주 검증).
