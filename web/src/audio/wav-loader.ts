@@ -10,13 +10,17 @@ function extensionOf(name: string): string {
   return dot < 0 ? '' : name.slice(dot + 1).toLowerCase()
 }
 
-// Decode an audio file into deinterleaved channels. Amiga/SNES formats with no
+// Decode raw bytes into deinterleaved channels. Amiga/SNES formats with no
 // browser support (IFF/8SVX, BRR, µ-law) are parsed in TS; everything else
-// (WAV/AIFF/...) falls back to the browser's decodeAudioData.
-export async function decodeAudioFile(file: File, ctx: BaseAudioContext): Promise<SampleData> {
-  const bytes = await file.arrayBuffer()
+// (WAV/AIFF/...) falls back to the browser's decodeAudioData. `name` is used
+// only for extension-based format dispatch.
+export async function decodeAudioBytes(
+  bytes: ArrayBuffer,
+  name: string,
+  ctx: BaseAudioContext,
+): Promise<SampleData> {
   const u8 = new Uint8Array(bytes)
-  const ext = extensionOf(file.name)
+  const ext = extensionOf(name)
 
   if (isIff8svx(u8)) return parseIff8svx(bytes)
   if (ext === 'brr') return parseBrr(bytes)
@@ -35,4 +39,8 @@ export async function decodeAudioFile(file: File, ctx: BaseAudioContext): Promis
     sourceRate: buf.sampleRate,
     frames: buf.length,
   }
+}
+
+export async function decodeAudioFile(file: File, ctx: BaseAudioContext): Promise<SampleData> {
+  return decodeAudioBytes(await file.arrayBuffer(), file.name, ctx)
 }

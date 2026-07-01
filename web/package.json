@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vp dev",
-    "build": "tsc && vp build",
-    "preview": "vp preview",
+    "dev": "node scripts/build-samples.mjs && vp dev",
+    "build": "node scripts/build-samples.mjs && tsc && vp build",
+    "preview": "node scripts/build-samples.mjs && vp preview",
+    "build:samples": "node scripts/build-samples.mjs",
     "build:wasm": "../engine/build.sh"
   },
   "devDependencies": {

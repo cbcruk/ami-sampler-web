@@ -8,6 +8,7 @@ import { type Widget, Slider, Button, Checkbox, Stepper, ImageButton } from './w
 import { WaveformCanvas } from './waveform-canvas'
 import { SampleList } from './sample-list'
 import { PianoCanvas } from './piano-canvas'
+import { SampleBrowser, type SampleBrowserDisk } from './sample-browser'
 
 const W = 1080
 const H = 640
@@ -67,7 +68,11 @@ export interface AmiUIOpts {
   canvas: HTMLCanvasElement
   assets: AmiAssets
   onLoadClick: () => void
+  bundledSamples?: SampleBrowserDisk[]
+  onLoadBundled?: (file: string, name: string) => void
 }
+
+const BROWSER_PANEL: Rect = { x: 170, y: 56, w: 740, h: 528 }
 
 export class AmiUI {
   private ctx: CanvasRenderingContext2D
@@ -75,6 +80,8 @@ export class AmiUI {
   private widgets: Widget[] = []
   private overlayWidgets: Widget[] = []
   private moreOpen = false
+  private browser: SampleBrowser | null = null
+  private browseOpen = false
   private active: Widget | null = null
 
   private chanState: Map<number, number>[] = []
@@ -121,6 +128,24 @@ export class AmiUI {
       onNoteOn: (n) => this.node?.noteOn(n, 1, 1),
       onNoteOff: (n) => this.node?.noteOff(n, 1),
     })
+
+    if (o.bundledSamples && o.bundledSamples.length > 0) {
+      this.browser = new SampleBrowser({
+        rect: BROWSER_PANEL,
+        disks: o.bundledSamples,
+        onPick: (file, name) => {
+          this.o.onLoadBundled?.(file, name)
+          this.browseOpen = false
+        },
+        onFile: () => {
+          this.browseOpen = false
+          this.o.onLoadClick()
+        },
+        onClose: () => {
+          this.browseOpen = false
+        },
+      })
+    }
 
     this.buildWidgets()
     this.attachPointer()
@@ -430,7 +455,10 @@ export class AmiUI {
       new Button({
         rect: rel(0.89, 0.737, 0.1, 0.051),
         label: 'LOAD',
-        onClick: () => this.o.onLoadClick(),
+        onClick: () => {
+          if (this.browser) this.browseOpen = true
+          else this.o.onLoadClick()
+        },
       }),
     )
     W_.push(
@@ -497,6 +525,16 @@ export class AmiUI {
   private attachPointer(): void {
     this.o.canvas.addEventListener('mousedown', (e) => {
       const { x, y } = this.toLogical(e)
+      // modal: sample browser overlay routes only to itself; click outside closes
+      if (this.browseOpen && this.browser) {
+        if (this.browser.hit(x, y)) {
+          this.active = this.browser
+          this.browser.onDown?.(x, y)
+        } else {
+          this.browseOpen = false
+        }
+        return
+      }
       // modal: when the MORE overlay is open, route only to it; click outside closes
       if (this.moreOpen) {
         for (let i = this.overlayWidgets.length - 1; i >= 0; i--) {
@@ -532,6 +570,13 @@ export class AmiUI {
       'wheel',
       (e) => {
         const { x, y } = this.toLogical(e)
+        if (this.browseOpen && this.browser) {
+          if (this.browser.hit(x, y)) {
+            this.browser.onWheel?.(x, y, e.deltaY)
+            e.preventDefault()
+          }
+          return
+        }
         for (let i = this.widgets.length - 1; i >= 0; i--) {
           const w = this.widgets[i]
           if (w.onWheel && w.hit(x, y)) {
@@ -622,6 +667,12 @@ export class AmiUI {
       bevel(ctx, p, AMI_BLL, AMI_BLD, 3)
       text(ctx, 'MORE SETTINGS', p.x + p.w / 2, p.y + 14, 18, AMI_WHT, 'center')
       for (const w of this.overlayWidgets) w.draw(ctx)
+    }
+
+    if (this.browseOpen && this.browser) {
+      ctx.fillStyle = 'rgba(0,0,0,0.45)'
+      ctx.fillRect(0, 0, W, H)
+      this.browser.draw(ctx)
     }
   }
 }

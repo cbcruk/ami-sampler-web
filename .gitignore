@@ -10,3 +10,4 @@ web/.vite/
 
 # Build artifacts
 web/public/wasm/*.wasm
+web/public/samples/

@@ -1,10 +1,11 @@
 import { AmiNode } from './audio/ami-node'
 import { GlobalParamId } from './audio/param-ids'
-import { decodeAudioFile } from './audio/wav-loader'
+import { decodeAudioFile, decodeAudioBytes } from './audio/wav-loader'
 import { MidiInput } from './audio/midi-input'
 import { ComputerKeyboard } from './ui/keyboard'
 import { loadAssets } from './ui/ami/assets'
 import { AmiUI } from './ui/ami/ami-ui'
+import type { SampleBrowserDisk } from './ui/ami/sample-browser'
 
 const LOGICAL_W = 1080
 const LOGICAL_H = 640
@@ -63,6 +64,23 @@ async function loadFile(file: File): Promise<void> {
   ui.loadSample(ui.activeChannel(), sample, file.name.replace(/\.[^.]+$/, '').slice(0, 16))
 }
 
+async function loadBundled(file: string, name: string): Promise<void> {
+  const node = await ensureAudio()
+  const res = await fetch(`${BASE}samples/${file}`)
+  const sample = await decodeAudioBytes(await res.arrayBuffer(), file, node.ctx)
+  ui.loadSample(ui.activeChannel(), sample, name.slice(0, 16))
+}
+
+async function loadSampleManifest(): Promise<SampleBrowserDisk[]> {
+  try {
+    const res = await fetch(`${BASE}samples/index.json`)
+    if (res.ok) return (await res.json()) as SampleBrowserDisk[]
+  } catch {
+    // no bundled samples — the LOAD button falls back to the file picker
+  }
+  return []
+}
+
 function fitCanvas(canvas: HTMLCanvasElement): void {
   const margin = 24
   const scale = Math.max(
@@ -79,8 +97,14 @@ async function main(): Promise<void> {
   const canvas = $<HTMLCanvasElement>('#ami')
   const fileInput = $<HTMLInputElement>('#file-input')
 
-  const assets = await loadAssets(`${BASE}res`)
-  ui = new AmiUI({ canvas, assets, onLoadClick: () => fileInput.click() })
+  const [assets, bundledSamples] = await Promise.all([loadAssets(`${BASE}res`), loadSampleManifest()])
+  ui = new AmiUI({
+    canvas,
+    assets,
+    onLoadClick: () => fileInput.click(),
+    bundledSamples,
+    onLoadBundled: (file, name) => void loadBundled(file, name),
+  })
 
   fitCanvas(canvas)
   window.addEventListener('resize', () => fitCanvas(canvas))
