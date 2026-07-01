@@ -100,6 +100,7 @@ emcc가 없으면 README의 emsdk 설치 절차 참고.
 - [x] 트래시 — `ImageButton`(amiTrashOff/On, press 피드백)으로 활성 채널 클리어. 중복 텍스트 버튼 제거.
 - [x] 커스텀 커서 — 캔버스에 `amiMouseCursor.png` CSS 커서 적용.
 - [ ] 미사용 에셋: `amiwin*.png`(창 스케일 가젯 — 웹 고정 레이아웃엔 불필요), `AmiLogo.png`(타이틀은 텍스트로 대체) — 의도적 미사용.
+- [ ] **건반에 키 라벨 표시** — 컴퓨터 키보드 입력은 이미 동작(`keyboard.ts` 2행 레이아웃). 어떤 PC 키가 어떤 건반인지 보이도록 `piano-canvas`에 키 문자(Z X C…, Q W E…)를 오버레이. `keyboard.ts`의 `LAYOUT`(code→노트오프셋)을 공유해 현재 base 옥타브 범위의 건반에 해당 문자를 그림(기존 16진 라벨과 병기/토글). 옥타브 시프트(`−`/`=`) 시 갱신.
 
 ### 모바일/터치
 - [x] **화면 맞춤 + 터치 입력** — `fitCanvas`가 좁은 화면에선 소수 배율로 축소(데스크탑은 정수 배율 유지), 입력을 Pointer Events로 통일(`ami-ui.ts`), 캔버스 `touch-action:none`, 뷰포트 `maximum-scale=1`. 샘플 리스트 터치 드래그 스크롤(탭=선택), 파형 두 손가락 핀치줌(`waveform-canvas.zoomAt`, ami-ui가 포인터 2개 추적).
