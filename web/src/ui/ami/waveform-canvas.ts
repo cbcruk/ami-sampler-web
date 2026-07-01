@@ -271,16 +271,21 @@ export class WaveformCanvas implements Widget {
     this.dragging = null
   }
 
-  onWheel(x: number, _y: number, deltaY: number): void {
+  // Zoom the view around logical x by `factor` (<1 zooms in). Shared by the
+  // desktop wheel and mobile pinch gesture.
+  zoomAt(x: number, factor: number): void {
     if (!this.sample) return
     const a = this.waveArea()
     const frac = Math.max(0, Math.min(1, (x - a.x) / a.w))
     const anchor = this.viewStart + frac * this.viewLen // frame under cursor
-    const factor = deltaY < 0 ? 0.8 : 1.25 // wheel up = zoom in
     this.viewLen *= factor
     this.clampView()
     this.viewStart = anchor - frac * this.viewLen
     this.clampView()
     this.computePeaks()
+  }
+
+  onWheel(x: number, _y: number, deltaY: number): void {
+    this.zoomAt(x, deltaY < 0 ? 0.8 : 1.25) // wheel up = zoom in
   }
 }

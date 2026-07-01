@@ -83,12 +83,12 @@ async function loadSampleManifest(): Promise<SampleBrowserDisk[]> {
 
 function fitCanvas(canvas: HTMLCanvasElement): void {
   const margin = 24
-  const scale = Math.max(
-    1,
-    Math.floor(
-      Math.min((window.innerWidth - margin) / LOGICAL_W, (window.innerHeight - margin) / LOGICAL_H),
-    ),
+  const raw = Math.min(
+    (window.innerWidth - margin) / LOGICAL_W,
+    (window.innerHeight - margin) / LOGICAL_H,
   )
+  // Desktop keeps crisp integer scaling; smaller screens shrink to fit (fractional).
+  const scale = raw >= 1 ? Math.floor(raw) : raw
   canvas.style.width = `${LOGICAL_W * scale}px`
   canvas.style.height = `${LOGICAL_H * scale}px`
 }

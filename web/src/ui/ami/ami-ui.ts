@@ -83,6 +83,8 @@ export class AmiUI {
   private browser: SampleBrowser | null = null
   private browseOpen = false
   private active: Widget | null = null
+  private pointers = new Map<number, { x: number; y: number }>()
+  private pinchDist: number | null = null
 
   private chanState: Map<number, number>[] = []
   private globalState = new Map<number, number>()
@@ -523,8 +525,20 @@ export class AmiUI {
     return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }
   }
   private attachPointer(): void {
-    this.o.canvas.addEventListener('mousedown', (e) => {
+    this.o.canvas.addEventListener('pointerdown', (e) => {
       const { x, y } = this.toLogical(e)
+      this.pointers.set(e.pointerId, { x, y })
+      // two fingers on the waveform → pinch-zoom; ignore a 2nd finger elsewhere
+      if (this.pointers.size === 2) {
+        if (!this.browseOpen && !this.moreOpen) {
+          const pts = [...this.pointers.values()]
+          if (pts.every((p) => this.waveform.hit(p.x, p.y))) {
+            this.active = null
+            this.pinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+          }
+        }
+        return
+      }
       // modal: sample browser overlay routes only to itself; click outside closes
       if (this.browseOpen && this.browser) {
         if (this.browser.hit(x, y)) {
@@ -557,15 +571,32 @@ export class AmiUI {
         }
       }
     })
-    window.addEventListener('mousemove', (e) => {
-      if (!this.active) return
+    window.addEventListener('pointermove', (e) => {
+      const p = this.pointers.get(e.pointerId)
+      if (!p) return
       const { x, y } = this.toLogical(e)
-      this.active.onDrag?.(x, y)
+      p.x = x
+      p.y = y
+      if (this.pinchDist !== null && this.pointers.size >= 2) {
+        const pts = [...this.pointers.values()]
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+        const cx = (pts[0].x + pts[1].x) / 2
+        if (dist > 0) this.waveform.zoomAt(cx, this.pinchDist / dist)
+        this.pinchDist = dist
+        return
+      }
+      this.active?.onDrag?.(x, y)
     })
-    window.addEventListener('mouseup', () => {
-      this.active?.onUp?.()
-      this.active = null
-    })
+    const endPointer = (e: PointerEvent): void => {
+      this.pointers.delete(e.pointerId)
+      if (this.pointers.size < 2) this.pinchDist = null
+      if (this.pointers.size === 0) {
+        this.active?.onUp?.()
+        this.active = null
+      }
+    }
+    window.addEventListener('pointerup', endPointer)
+    window.addEventListener('pointercancel', endPointer)
     this.o.canvas.addEventListener(
       'wheel',
       (e) => {

@@ -28,6 +28,7 @@ export class SampleBrowser implements Widget {
   private pickedFile: string | null = null
   private draggingThumb = false
   private dragOffset = 0
+  private press: { startY: number; startScroll: number; row: number; moved: boolean } | null = null
 
   constructor(private o: SampleBrowserOpts) {
     this.rect = o.rect
@@ -149,13 +150,9 @@ export class SampleBrowser implements Widget {
     if (inRect(this.closeBtn(footer), x, y)) return this.o.onClose()
     if (inRect(scrollbar, x, y)) return this.scrollbarDown(y, scrollbar, list.h)
     if (inRect(list, x, y)) {
-      const i = Math.floor((y - list.y - 2) / ROW_H)
-      const idx = this.scroll + i
-      const items = this.items()
-      if (i >= 0 && i < this.visibleRows(list.h) && idx < items.length) {
-        this.pickedFile = items[idx].file
-        this.o.onPick(items[idx].file, items[idx].name)
-      }
+      // defer selection to onUp so a touch-drag scrolls instead of picking
+      const row = Math.floor((y - list.y - 2) / ROW_H)
+      this.press = { startY: y, startScroll: this.scroll, row, moved: false }
     }
   }
 
@@ -176,17 +173,35 @@ export class SampleBrowser implements Widget {
   }
 
   onDrag(_x: number, y: number): void {
-    if (!this.draggingThumb) return
     const { list, scrollbar } = this.layout()
-    const rows = this.visibleRows(list.h)
-    const max = Math.max(0, this.items().length - rows)
-    if (max <= 0) return
-    const thumbH = Math.max(24, Math.round((scrollbar.h * rows) / this.items().length))
-    const t = (y - this.dragOffset - scrollbar.y) / (scrollbar.h - thumbH)
-    this.scroll = Math.round(Math.max(0, Math.min(1, t)) * max)
+    if (this.draggingThumb) {
+      const rows = this.visibleRows(list.h)
+      const max = Math.max(0, this.items().length - rows)
+      if (max <= 0) return
+      const thumbH = Math.max(24, Math.round((scrollbar.h * rows) / this.items().length))
+      const t = (y - this.dragOffset - scrollbar.y) / (scrollbar.h - thumbH)
+      this.scroll = Math.round(Math.max(0, Math.min(1, t)) * max)
+      return
+    }
+    if (this.press) {
+      const dy = y - this.press.startY
+      if (Math.abs(dy) > 4) this.press.moved = true
+      this.scroll = this.press.startScroll - Math.round(dy / ROW_H)
+      this.clampScroll(list.h)
+    }
   }
 
   onUp(): void {
+    if (this.press && !this.press.moved) {
+      const { list } = this.layout()
+      const items = this.items()
+      const idx = this.scroll + this.press.row
+      if (this.press.row >= 0 && this.press.row < this.visibleRows(list.h) && idx < items.length) {
+        this.pickedFile = items[idx].file
+        this.o.onPick(items[idx].file, items[idx].name)
+      }
+    }
+    this.press = null
     this.draggingThumb = false
   }
 
