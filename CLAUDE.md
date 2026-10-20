@@ -13,7 +13,7 @@
 
 ```
 engine/ami-engine.cpp   JUCE-free DSP. extern "C" C ABI. import 0개 ~20KB wasm.
-engine/build.sh         emcc 빌드 (../web-build/emsdk 자동 source)
+engine/build.sh         emcc 빌드 (mise.toml의 emsdk 자동 로드)
 web/                    Vite + TS 앱
   public/ami-processor.js   AudioWorkletProcessor (import 없는 plain JS)
   public/wasm/ami-engine.wasm  (gitignored 빌드산출물)
@@ -25,7 +25,7 @@ web/                    Vite + TS 앱
 reference/Source/       원본 JUCE 소스 (읽기전용 포팅 레퍼런스, reference/README.md에 매핑표)
 Res/                    원본 픽셀아트 에셋 (UI용)
 Samples/                원본 Amiga 샘플셋 (테스트용)
-web-build/emsdk/        Emscripten SDK (gitignored 로컬 툴, 1.6G)
+mise.toml               emsdk 버전 고정 (로컬·CI 공통)
 ```
 
 ## 빌드 & 실행
@@ -36,13 +36,13 @@ pnpm build:wasm     # engine/build.sh → public/wasm/ami-engine.wasm
 pnpm dev            # http://localhost:5173
 pnpm build          # tsc && vite build (커밋 전 타입체크 겸용)
 ```
-emcc가 없으면 README의 emsdk 설치 절차 참고.
+emcc가 없으면 repo 루트에서 `mise install`.
 
 ## 배포 (GitHub Pages)
 
-- `.github/workflows/deploy.yml`: main 푸시 시 emsdk 설치 → `build:wasm` → `vite build` → Pages 배포.
+- `.github/workflows/deploy.yml`: main 푸시 시 mise-action으로 emsdk 설치 → `build:wasm` → `vite build` → Pages 배포.
 - `vite.config.ts`의 `base`는 `GITHUB_REPOSITORY`에서 repo명 자동 도출(`/<repo>/`), 로컬은 `/`. 런타임 절대경로(wasm/worklet/res)는 `import.meta.env.BASE_URL` 접두(`main.ts`), favicon/커서는 상대경로.
-- `build.sh`는 emcc가 PATH에 있으면(CI) 로컬 emsdk source를 건너뜀.
+- emsdk 버전을 올릴 땐 `mise.toml`만 바꾸면 로컬·CI가 같이 바뀜.
 - **최초 1회 수동 설정**: GitHub repo 생성·push 후 Settings → Pages → Source를 "GitHub Actions"로 지정.
 
 ## 반드시 지킬 규약

@@ -25,10 +25,9 @@ between JS and WASM, and [CREDITS.md](CREDITS.md) for attribution / license.
 ## Setup
 
 ```bash
-# Emscripten SDK — installed locally under web-build/emsdk (engine/build.sh
-# sources it automatically). To (re)install:
-git clone https://github.com/emscripten-core/emsdk.git web-build/emsdk
-cd web-build/emsdk && ./emsdk install latest && ./emsdk activate latest && cd ../..
+# Emscripten SDK — version pinned in mise.toml (engine/build.sh loads it
+# automatically, even without `mise activate`).
+mise install
 
 # Build the WASM engine
 cd web && pnpm install

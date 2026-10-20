@@ -27,8 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Emscripten
-        uses: mymindstorm/setup-emsdk@v14
+      - name: Set up Emscripten (mise.toml)
+        uses: jdx/mise-action@v5
 
       - uses: pnpm/action-setup@v4
         with:
